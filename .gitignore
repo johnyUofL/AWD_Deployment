@@ -1,0 +1,32 @@
+# Virtual environment folder
+venv/
+env/
+.venv/
+
+# Python bytecode and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Django-specific files
+*.log
+*.pot
+*.pyc
+db.sqlite3  # SQLite database (if you're using it for development)
+
+# Environment variables and secrets
+.env
+*.env
+
+# macOS-specific files
+.DS_Store
+
+# Editor/IDE files
+.vscode/
+.idea/
+*.swp
+
+# Dependency directories (if you use these)
+dist/
+build/
+*.egg-info/
