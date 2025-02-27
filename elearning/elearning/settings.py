@@ -15,6 +15,7 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
+AUTH_USER_MODEL = 'userauths.User'
 
 # Application definition
 
@@ -23,13 +24,13 @@ INSTALLED_APPS = [
     'jazzmin',
     'django.contrib.admin',
     'django.contrib.auth',
+    'userauths.apps.UserauthsConfig', #for userauths
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
 
     #Custom apps
-    'userauths',
     'core',
     'addon',
     

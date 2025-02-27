@@ -1,0 +1,14 @@
+
+# .cursorignore
+# Environment variables
+.env
+*.env
+env/
+
+# Python/Django caches and DB
+__pycache__/
+*.pyc
+db.sqlite3
+
+# Virtual environment
+venv/
