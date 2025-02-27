@@ -24,7 +24,7 @@ INSTALLED_APPS = [
     'jazzmin',
     'django.contrib.admin',
     'django.contrib.auth',
-    'userauths.apps.UserauthsConfig', #for userauths
+    'userauths.apps.UserauthsConfig', #this includes the userauths app
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
