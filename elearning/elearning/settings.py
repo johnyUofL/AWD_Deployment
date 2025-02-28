@@ -143,6 +143,8 @@ JAZZMIN_SETTINGS = {
     "topmenu_links": [
         {"name": "Home", "url": "admin:index", "permissions": ["auth.view_user"]},
         {"name": "Users", "url": "/admin/userauths/user/", "new_window": False},
+        {"name": "Courses", "url": "/admin/core/course/", "new_window": False},
+        {"name": "Chat Rooms", "url": "/admin/addon/chatroom/", "new_window": False},
       ],
     "order_with_respect_to": [
         "core",
