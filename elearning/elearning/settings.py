@@ -151,12 +151,12 @@ CORS_ALLOWED_ORIGINS = [
 
 # Jazzmin settings
 JAZZMIN_SETTINGS = {
-    'site_title': 'Elearn App Admin',
-    'site_header': 'Elearn APP',
+    'site_title': 'PHOTOEDU ADMIN',
+    'site_header': 'PHOTOEDU',
     'site_brand': 'Welcome',
     "site_logo": "images/logo.svg",
     'copyright': f'All Rights Reserved © {datetime.now().year}',
-    'welcome_sign': 'Welcome to Elearn App Admin - Login Now',
+    'welcome_sign': 'Welcome to PHOTO EDU Admin - Login Now',
     'topmenu_links': [
         {'name': 'Home', 'url': 'admin:index', 'permissions': ['auth.view_user']},
         {'name': 'Users', 'url': '/admin/userauths/user/', 'new_window': False},

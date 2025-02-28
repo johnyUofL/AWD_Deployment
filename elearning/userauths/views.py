@@ -1,5 +1,5 @@
 from django.shortcuts import render, redirect
-from django.contrib.auth import authenticate, login
+from django.contrib.auth import authenticate, login, logout
 from rest_framework import viewsets, permissions
 from .models import User, UserPermission, StatusUpdate, Notification
 from .serializers import UserSerializer, UserPermissionSerializer, StatusUpdateSerializer, NotificationSerializer
@@ -55,3 +55,18 @@ class NotificationViewSet(viewsets.ModelViewSet):
 class CustomLoginView(LoginView):
     def get_success_url(self):
         return self.request.POST.get('next', '/home/')  # Redirect to home if 'next' is not provided
+
+def custom_logout(request):
+    # Get the referer (previous page) to determine if this is an admin logout
+    referer = request.META.get('HTTP_REFERER', '')
+    is_admin_logout = '/admin/' in referer
+    
+    # Perform the logout
+    logout(request)
+    
+    # Redirect based on the source of the logout request
+    if is_admin_logout:
+        return redirect('/admin/login/?next=/admin/')
+    else:
+        # Use the default logout behavior for non-admin logouts
+        return redirect('login')
