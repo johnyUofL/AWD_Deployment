@@ -144,9 +144,9 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # CORS settings (for frontend API access)
-CORS_ALLOW_ALL_ORIGINS = True  # Development only; restrict in production
+CORS_ALLOW_ALL_ORIGINS = True  # THIS SHOULD BE FALSE WHEN UPLOADED IN SERVER
 CORS_ALLOWED_ORIGINS = [
-    'http://localhost:3000',  # Add your frontend URL
+    'http://localhost:3000',  
 ]
 
 # Jazzmin settings
@@ -154,6 +154,7 @@ JAZZMIN_SETTINGS = {
     'site_title': 'Elearn App Admin',
     'site_header': 'Elearn APP',
     'site_brand': 'Welcome',
+    "site_logo": "images/logo.svg",
     'copyright': f'All Rights Reserved © {datetime.now().year}',
     'welcome_sign': 'Welcome to Elearn App Admin - Login Now',
     'topmenu_links': [

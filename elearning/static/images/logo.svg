@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <!-- Clean background circle -->
+  <circle cx="200" cy="200" r="190" fill="#ffffff" stroke="#333333" stroke-width="3"/>
+  
+  <!-- Simplified camera icon -->
+  <rect x="130" y="150" width="140" height="100" rx="8" ry="8" fill="#333333"/>
+  
+  <!-- Camera lens (simplified) -->
+  <circle cx="200" cy="200" r="40" fill="#555555" stroke="#222222" stroke-width="2"/>
+  <circle cx="200" cy="200" r="30" fill="#444444"/>
+  <circle cx="200" cy="200" r="15" fill="#222222"/>
+  
+  <!-- Camera viewfinder -->
+  <rect x="160" y="140" width="25" height="15" rx="3" ry="3" fill="#333333"/>
+  
+  <!-- Graduation cap -->
+  <rect x="185" y="120" width="30" height="4" fill="#333333"/>
+  <path d="M200,124 L220,135 L180,135 Z" fill="#333333"/>
+  
+  <!-- Simple book/education element -->
+  <rect x="150" y="260" width="100" height="10" rx="2" ry="2" fill="#333333"/>
+  
+  <!-- Platform Name -->
+  <text x="200" y="320" font-family="Arial, sans-serif" font-size="24" font-weight="bold" text-anchor="middle" fill="#333333">PHOTO EDU</text>
+</svg>
