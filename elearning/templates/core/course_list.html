@@ -5,7 +5,7 @@
         <div class="row">
             {% for course in courses %}
                 <div class="col-md-4 mb-3">
-                    <div class="card h-100">
+                    <div class="card h-100 course-card">
                         {% if course.cover_image_path %}
                             <img src="{{ course.cover_image_path.url }}" class="card-img-top" alt="{{ course.title }}" style="max-height: 200px; object-fit: cover;">
                         {% else %}
