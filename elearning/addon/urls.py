@@ -4,7 +4,5 @@ from . import views
 app_name = 'addon'
 
 urlpatterns = [
-    # Add your URL patterns here
-    # For example:
-    # path('', views.index, name='index'),
+    path('rooms/', views.chat_room_list, name='chat_room_list'),
 ]

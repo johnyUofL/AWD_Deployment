@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block content %}
+    <h1>{{ user.username }}'s Home</h1>
+    <p>{{ user.first_name }} {{ user.last_name }}</p>
+    <p>{{ user.bio }}</p>
+    <img src="{{ user.profile_picture_path.url }}" alt="Profile Picture" width="100">
+    <h2>Registered Courses</h2>
+    <ul>
+        {% for enrollment in user.enrollments.all %}
+            <li>{{ enrollment.course.title }}</li>
+        {% endfor %}
+    </ul>
+    <h2>Status Updates</h2>
+    <form method="post" action="{% url 'status_update' %}">
+        {% csrf_token %}
+        <textarea name="content"></textarea>
+        <button type="submit">Post</button>
+    </form>
+    <ul>
+        {% for status in user.status_updates.all %}
+            <li>{{ status.content }} - {{ status.posted_at }}</li>
+        {% endfor %}
+    </ul>
+{% endblock %}

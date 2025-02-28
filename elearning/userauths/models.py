@@ -7,12 +7,13 @@ class User(AbstractUser):
         ('teacher', 'Teacher'),
         ('admin', 'Administrator'),
     )
-    
     profile_picture_path = models.ImageField(upload_to='profile_pictures/', null=True, blank=True)
     user_type = models.CharField(max_length=10, choices=USER_TYPE_CHOICES, default='student')
     bio = models.TextField(blank=True)
     is_blocked = models.BooleanField(default=False)
-    
+    first_name = models.CharField(max_length=50) 
+    last_name = models.CharField(max_length=50)
+
     def __str__(self):
         return self.username
 

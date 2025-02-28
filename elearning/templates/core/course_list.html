@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block content %}
+    <h1>Available Courses</h1>
+    {% if courses %}
+        <ul>
+            {% for course in courses %}
+                <li>
+                    {{ course.title }} - Taught by {{ course.teacher.username }}
+                    {% if course.id in enrolled_course_ids %}
+                        <span>(Enrolled)</span>
+                    {% else %}
+                        <a href="{% url 'core:enroll_course' course.id %}">Enroll</a>
+                    {% endif %}
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>No courses available.</p>
+    {% endif %}
+{% endblock %}

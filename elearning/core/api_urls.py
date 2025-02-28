@@ -2,13 +2,11 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     CourseViewSet, EnrollmentViewSet, CourseMaterialViewSet, AssignmentViewSet,
-    SubmissionViewSet, GradeViewSet, CourseFeedbackViewSet, AnnouncementViewSet,
-    course_list, enroll_course, teacher_dashboard, block_student
+    SubmissionViewSet, GradeViewSet, CourseFeedbackViewSet, AnnouncementViewSet
 )
 
-app_name = "core"
+app_name = 'core_api'
 
-# REST API Router
 router = DefaultRouter()
 router.register(r'courses', CourseViewSet)
 router.register(r'enrollments', EnrollmentViewSet)
@@ -19,12 +17,6 @@ router.register(r'grades', GradeViewSet)
 router.register(r'feedback', CourseFeedbackViewSet)
 router.register(r'announcements', AnnouncementViewSet)
 
-# Frontend URL patterns
 urlpatterns = [
-    path('', course_list, name='course_list'),
-    path('enroll/<int:course_id>/', enroll_course, name='enroll_course'),
-    path('teacher/', teacher_dashboard, name='teacher_dashboard'),
-    path('block/<int:student_id>/', block_student, name='block_student'),
+    path('', include(router.urls)),
 ]
-
-print("core.urls loaded, urlpatterns:", urlpatterns)
