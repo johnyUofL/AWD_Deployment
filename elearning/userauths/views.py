@@ -1,11 +1,23 @@
 from django.shortcuts import render, redirect
-from django.contrib.auth import login
+from django.contrib.auth import authenticate, login
 from rest_framework import viewsets, permissions
 from .models import User, UserPermission, StatusUpdate, Notification
 from .serializers import UserSerializer, UserPermissionSerializer, StatusUpdateSerializer, NotificationSerializer
 from .forms import UserSignupForm
+from django.contrib.auth.views import LoginView
 
-# Frontend View
+def custom_login(request):
+    if request.method == 'POST':
+        username = request.POST['username']
+        password = request.POST['password']
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            login(request, user)
+            return redirect('core:course_list')  # Always to home
+        else:
+            return render(request, 'registration/login.html', {'error': 'Invalid credentials'})
+    return render(request, 'registration/login.html')
+
 def signup(request):
     if request.method == 'POST':
         form = UserSignupForm(request.POST, request.FILES)
@@ -39,3 +51,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
     queryset = Notification.objects.all()
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+class CustomLoginView(LoginView):
+    def get_success_url(self):
+        return self.request.POST.get('next', '/home/')  # Redirect to home if 'next' is not provided
