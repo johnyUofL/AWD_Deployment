@@ -4,6 +4,8 @@ from datetime import datetime
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# Default primary key field type for all models
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.0/howto/deployment/checklist/
@@ -134,8 +136,8 @@ JAZZMIN_SETTINGS = {
     "site_title": "Elearn App Admin",
     "site_header": "Elearn APP",
     "site_brand": "Welcome",
-    # "site_logo": "images/logo.png",
-    "site_icon": "images/favicon.ico",
+    # "site_logo": "images/logo.png", #this is for the logo of the admin site not include yet
+    #"site_icon": "images/favicon.ico", #this is for the icon of the admin site not include yet
     "copyright": f"All Rights Reserved © {datetime.now().year}",
     "welcome_sign": "Welcome to Elearn App Admin - Login Now",
     "topmenu_links": [
@@ -158,8 +160,8 @@ JAZZMIN_SETTINGS = {
     "show_ui_builder": True,
     "changeform_format": "horizontal_tabs",
     "related_modal_active": True,
-    "custom_css": "css/custom.css",
-    "custom_js": "js/custom.js",
+    #"custom_css": "css/custom.css", #this is for custom css for the admin site not include yet
+    #"custom_js": "js/custom.js", #this is for custom js for the admin site not include yet
     "show_sidebar": True,
     "navigation_expanded": True,
 }
