@@ -6,6 +6,7 @@ from .models import User, UserPermission, StatusUpdate, Notification
 from .serializers import UserSerializer, UserPermissionSerializer, StatusUpdateSerializer, NotificationSerializer
 from .forms import UserSignupForm
 from django.contrib.auth.views import LoginView
+from rest_framework.permissions import AllowAny, IsAuthenticated
 
 def custom_login(request):
     if request.method == 'POST':
@@ -36,7 +37,13 @@ def signup(request):
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_permissions(self):
+        if self.action == 'create':
+            permission_classes = [AllowAny]
+        else:
+            permission_classes = [IsAuthenticated]
+        return [permission() for permission in permission_classes]
 
 class UserPermissionViewSet(viewsets.ModelViewSet):
     queryset = UserPermission.objects.all()

@@ -11,8 +11,8 @@ class User(AbstractUser):
     user_type = models.CharField(max_length=10, choices=USER_TYPE_CHOICES, default='student')
     bio = models.TextField(blank=True)
     is_blocked = models.BooleanField(default=False)
-    first_name = models.CharField(max_length=50) 
-    last_name = models.CharField(max_length=50)
+    first_name = models.CharField(max_length=50, blank=True)
+    last_name = models.CharField(max_length=50, blank=True)
 
     def __str__(self):
         return self.username

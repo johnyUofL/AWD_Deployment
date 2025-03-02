@@ -9,19 +9,11 @@ const App = (function() {
     };
 
     function getCsrfToken() {
-        const name = 'csrftoken';
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== '') {
-            const cookies = document.cookie.split(';');
-            for (let i = 0; i < cookies.length; i++) {
-                const cookie = cookies[i].trim();
-                if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                    break;
-                }
-            }
-        }
-        return cookieValue;
+        const cookieValue = document.cookie
+            .split('; ')
+            .find(row => row.startsWith('csrftoken='))
+            ?.split('=')[1];
+        return cookieValue || '';
     }
 
     async function apiFetch(url, options = {}) {
@@ -70,14 +62,28 @@ const App = (function() {
                 <div class="mb-3">
                     <label for="username" class="form-label">Username</label>
                     <input type="text" id="username" class="form-control" required>
+                    <div class="invalid-feedback">Please choose a username.</div>
+                </div>
+                <div class="mb-3">
+                    <label for="email" class="form-label">Email</label>
+                    <input type="email" id="email" class="form-control" required>
+                    <div class="invalid-feedback">Please provide a valid email.</div>
                 </div>
                 <div class="mb-3">
                     <label for="password" class="form-label">Password</label>
                     <input type="password" id="password" class="form-control" required>
+                    <div class="invalid-feedback">Password must be at least 8 characters.</div>
                 </div>
-                <button type="submit" class="btn btn-primary">Signup</button>
+                <div class="mb-3">
+                    <label for="confirm_password" class="form-label">Confirm Password</label>
+                    <input type="password" id="confirm_password" class="form-control" required>
+                    <div class="invalid-feedback">Passwords do not match.</div>
+                </div>
+                <div id="signup-error" class="alert alert-danger d-none"></div>
+                <button type="submit" class="btn btn-primary">Sign Up</button>
             </form>
         `;
+        
         document.getElementById('signup-form').addEventListener('submit', (e) => {
             e.preventDefault();
             signup();
@@ -390,16 +396,84 @@ const App = (function() {
     }
 
     async function signup() {
-        const usernameInput = document.getElementById('username').value;
+        const username = document.getElementById('username').value;
+        const email = document.getElementById('email').value;
         const password = document.getElementById('password').value;
+        const confirmPassword = document.getElementById('confirm_password').value;
+        const errorDiv = document.getElementById('signup-error');
+        
+        // Reset error message
+        errorDiv.classList.add('d-none');
+        
+        // Basic validation
+        if (password.length < 8) {
+            errorDiv.textContent = 'Password must be at least 8 characters long.';
+            errorDiv.classList.remove('d-none');
+            return;
+        }
+        
+        if (password !== confirmPassword) {
+            errorDiv.textContent = 'Passwords do not match.';
+            errorDiv.classList.remove('d-none');
+            return;
+        }
+        
+        // Create FormData for submission
+        const formData = new FormData();
+        formData.append('username', username);
+        formData.append('email', email);
+        formData.append('password', password);
+        
+        // Add required fields with default values
+        formData.append('first_name', username); // Default first name to username
+        formData.append('last_name', username); // Default last name to username too
+        formData.append('user_type', 'student'); // Default to student
+        formData.append('bio', ''); // Empty bio
+        
         try {
-            await apiFetch('http://127.0.0.1:8000/userauths/api/users/', {
+            const response = await fetch('/userauths/api/users/', {
                 method: 'POST',
-                body: JSON.stringify({ username: usernameInput, password, user_type: 'student' })
+                body: formData,
+                headers: {
+                    'X-CSRFToken': getCsrfToken()
+                }
             });
-            renderLogin();
+            
+            if (!response.ok) {
+                const errorData = await response.json();
+                let errorMessage = 'Signup failed. ';
+                
+                // Format error messages from the API - handle different response formats
+                if (errorData) {
+                    for (const field in errorData) {
+                        if (Array.isArray(errorData[field])) {
+                            errorMessage += `${field}: ${errorData[field].join(' ')} `;
+                        } else if (typeof errorData[field] === 'string') {
+                            errorMessage += `${field}: ${errorData[field]} `;
+                        } else {
+                            errorMessage += `${field}: Invalid input `;
+                        }
+                    }
+                }
+                
+                throw new Error(errorMessage);
+            }
+            
+            // Show success message
+            content.innerHTML = `
+                <div class="alert alert-success">
+                    Your account has been created successfully! You can now log in.
+                </div>
+            `;
+            
+            // Redirect to login after 2 seconds
+            setTimeout(() => {
+                renderLogin();
+            }, 2000);
+            
         } catch (error) {
-            content.innerHTML += '<div class="alert alert-danger">Signup failed</div>';
+            errorDiv.textContent = error.message;
+            errorDiv.classList.remove('d-none');
             console.error('Signup error:', error);
         }
     }
