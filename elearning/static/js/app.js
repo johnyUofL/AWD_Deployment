@@ -341,19 +341,12 @@ const App = (function() {
             filteredCourses = courses.filter(course => enrolledCourseIds.includes(course.id));
         }
         
-        // Filter by search term if provided
-        if (searchTerm) {
-            const term = searchTerm.toLowerCase();
-            filteredCourses = filteredCourses.filter(course => 
-                course.title.toLowerCase().includes(term) || 
-                course.teacher.username.toLowerCase().includes(term) ||
-                (course.description && course.description.toLowerCase().includes(term))
-            );
-        }
+        // Create the results counter HTML - but don't show it yet
+        const resultsCounterHtml = `<div id="results-counter" class="filtered-results mb-3" style="display: none;"></div>`;
 
         content.innerHTML = `
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h1>Available Courses</h1>
+                <h1>Courses</h1>
                 <div class="d-flex">
                     <div class="input-group me-2" style="width: 300px;">
                         <input type="text" id="course-search" class="form-control" placeholder="Search courses..." value="${searchTerm}">
@@ -363,13 +356,15 @@ const App = (function() {
                     </div>
                     <div class="btn-group" role="group">
                         <button type="button" class="btn ${!enrolledOnly ? 'btn-primary' : 'btn-outline-primary'}" id="all-courses-btn">All Courses</button>
-                        <button type="button" class="btn ${enrolledOnly ? 'btn-primary' : 'btn-outline-primary'}" id="enrolled-courses-btn">My Enrolled</button>
+                        <button type="button" class="btn ${enrolledOnly ? 'btn-primary' : 'btn-outline-primary'}" id="enrolled-courses-btn">Enrolled</button>
                     </div>
                 </div>
             </div>
             
+            ${resultsCounterHtml}
+            
             ${filteredCourses.length === 0 ? 
-                `<div class="alert alert-info">No courses found matching your criteria.</div>` : 
+                `<div class="alert alert-info">No courses match your search criteria.</div>` : 
                 `<div class="row">
                     ${filteredCourses.map(course => `
                         <div class="col-md-4 mb-3">
@@ -385,8 +380,7 @@ const App = (function() {
                                                 <button class="btn btn-primary btn-sm me-1 profile-btn" data-user-id="${course.teacher.id}">View Teacher</button>
                                                 <button class="btn btn-primary btn-sm me-1" data-course-id="${course.id}">Open</button>
                                                 <button class="btn btn-danger btn-sm unenroll-btn" data-enrollment-id="${enrollmentMap[course.id]}">Unenroll</button>
-                                             </div>` 
-                                            : 
+                                             </div>` : 
                                             `<button class="btn btn-primary btn-sm me-1 profile-btn" data-user-id="${course.teacher.id}">View Teacher</button>
                                             <button class="btn btn-primary btn-sm enroll-btn" data-course-id="${course.id}">Enroll</button>`
                                         }
@@ -410,14 +404,13 @@ const App = (function() {
         
         document.getElementById('search-button').addEventListener('click', () => {
             const searchTerm = document.getElementById('course-search').value;
-            renderCourseList(state.allCourses, state.enrolledCourseIds, state.enrollmentMap, enrolledOnly, searchTerm);
+            filterCourseCards(searchTerm);
         });
         
-        document.getElementById('course-search').addEventListener('keyup', (e) => {
-            if (e.key === 'Enter') {
-                const searchTerm = e.target.value;
-                renderCourseList(state.allCourses, state.enrolledCourseIds, state.enrollmentMap, enrolledOnly, searchTerm);
-            }
+        // Use the DOM-based filtering approach for real-time search
+        document.getElementById('course-search').addEventListener('input', (e) => {
+            const searchTerm = e.target.value;
+            filterCourseCards(searchTerm);
         });
 
         document.querySelectorAll('.enroll-btn').forEach(button => {
@@ -435,6 +428,42 @@ const App = (function() {
         document.querySelectorAll('.profile-btn').forEach(button => {
             button.addEventListener('click', () => viewProfile(button.getAttribute('data-user-id')));
         });
+
+        // Apply initial filtering if search term is provided
+        if (searchTerm) {
+            filterCourseCards(searchTerm);
+        }
+    }
+
+    // New function for DOM-based filtering
+    function filterCourseCards(searchTerm) {
+        const term = searchTerm.toLowerCase();
+        const courseCards = document.querySelectorAll('.course-card');
+        let visibleCount = 0;
+        
+        courseCards.forEach(card => {
+            const cardContainer = card.closest('.col-md-4');
+            const title = card.querySelector('.card-title').textContent.toLowerCase();
+            const teacher = card.querySelector('.card-text').textContent.toLowerCase();
+            
+            if (title.includes(term) || teacher.includes(term)) {
+                cardContainer.style.display = '';
+                visibleCount++;
+            } else {
+                cardContainer.style.display = 'none';
+            }
+        });
+        
+        // Update the counter
+        const resultsCounter = document.getElementById('results-counter');
+        if (resultsCounter) {
+            if (term) {
+                resultsCounter.textContent = `Showing ${visibleCount} of ${courseCards.length} courses`;
+                resultsCounter.style.display = 'block';
+            } else {
+                resultsCounter.style.display = 'none';
+            }
+        }
     }
 
     async function login() {
