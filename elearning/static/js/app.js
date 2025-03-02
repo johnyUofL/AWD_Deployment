@@ -3,18 +3,30 @@ document.addEventListener('DOMContentLoaded', () => {
     const content = document.getElementById('content');
     let token = localStorage.getItem('token');
     let userId = localStorage.getItem('userId');
+    let firstName = localStorage.getItem('firstName');
 
     // Update navigation
     function updateNav() {
         navLinks.innerHTML = '';
         if (token) {
+            console.log('Token:', token); // Debug
+            console.log('First name in updateNav:', firstName); // Debug
             navLinks.innerHTML = `
-                <li class="nav-item">
-                    <button class="nav-link btn btn-link text-light" id="logout-btn">Logout</button>
+                <li class="nav-item d-flex align-items-center">
+                    <span class="nav-link text-light me-2">Welcome! ${firstName || 'User'}</span>
+                    <button class="nav-link btn btn-link text-light" id="logout-btn" title="Logout">
+                        <i class="bi bi-box-arrow-right"></i>
+                    </button>
                 </li>
             `;
-            document.getElementById('logout-btn').addEventListener('click', logout);
-            fetchCourses();  // Default view is courses
+            const logoutBtn = document.getElementById('logout-btn');
+            if (logoutBtn) {
+                logoutBtn.addEventListener('click', logout);
+                console.log('Logout button added'); // Debug
+            } else {
+                console.error('Logout button not found');
+            }
+            fetchCourses();
         } else {
             navLinks.innerHTML = `
                 <li class="nav-item"><a class="nav-link" href="#" id="login-link">Login</a></li>
@@ -29,6 +41,42 @@ document.addEventListener('DOMContentLoaded', () => {
                 showSignup();
             });
             showLogin();
+        }
+    }
+
+    // Fetch user data if token exists
+    function fetchUserData() {
+        if (token) {
+            fetch('http://127.0.0.1:8000/userauths/api/users/', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            })
+            .then(response => {
+                console.log('Users response status:', response.status); // Debug
+                if (!response.ok) {
+                    throw new Error('Users fetch failed: ' + response.status);
+                }
+                return response.json();
+            })
+            .then(users => {
+                console.log('Users response data:', JSON.stringify(users, null, 2)); // Debug
+                const user = users.find(u => u.id === parseInt(userId));
+                console.log('Found user by ID:', user); // Debug
+                if (user) {
+                    firstName = user.first_name || user.username; // Use first_name, fallback to username
+                    localStorage.setItem('firstName', firstName);
+                    console.log('Updated firstName:', firstName); // Debug
+                    updateNav();
+                } else {
+                    console.error('User not found for ID:', userId);
+                    logout(); // Clear invalid token
+                }
+            })
+            .catch(error => {
+                console.error('Fetch user data error:', error);
+                logout(); // Clear invalid token and force login
+            });
+        } else {
+            updateNav(); // No token, show login/signup
         }
     }
 
@@ -118,27 +166,48 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Login function
     function login() {
-        const username = document.getElementById('username').value;
+        const usernameInput = document.getElementById('username').value;
         const password = document.getElementById('password').value;
+        console.log('Login attempt with username:', usernameInput); // Debug
         fetch('http://127.0.0.1:8000/api/token/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
+            body: JSON.stringify({ username: usernameInput, password })
         })
-        .then(response => response.json())
+        .then(response => {
+            console.log('Token response status:', response.status); // Debug
+            if (!response.ok) throw new Error('Token fetch failed: ' + response.status);
+            return response.json();
+        })
         .then(data => {
             token = data.access;
             localStorage.setItem('token', token);
-            fetch('http://127.0.0.1:8000/userauths/api/users/', {
+            console.log('Token received:', token); // Debug
+            return fetch('http://127.0.0.1:8000/userauths/api/users/', {
                 headers: { 'Authorization': `Bearer ${token}` }
-            })
-            .then(response => response.json())
-            .then(users => {
-                const user = users.find(u => u.username === username);
-                userId = user.id;
-                localStorage.setItem('userId', userId);
-                updateNav();
             });
+        })
+        .then(response => {
+            console.log('Users response status:', response.status); // Debug
+            if (!response.ok) throw new Error('Users fetch failed: ' + response.status);
+            return response.json();
+        })
+        .then(users => {
+            console.log('Users response data:', JSON.stringify(users, null, 2)); // Debug
+            const user = users.find(u => u.username.toLowerCase() === usernameInput.toLowerCase());
+            console.log('Searching for username:', usernameInput.toLowerCase()); // Debug
+            console.log('Found user:', user); // Debug
+            if (user) {
+                userId = user.id;
+                firstName = user.first_name || user.username; // Use first_name, fallback to username
+                localStorage.setItem('userId', userId);
+                localStorage.setItem('firstName', firstName);
+                console.log('Logged in user:', { id: userId, firstName: firstName }); // Debug
+                updateNav();
+            } else {
+                console.error('User not found in response for:', usernameInput);
+                throw new Error('User not found in API response');
+            }
         })
         .catch(error => {
             content.innerHTML += '<div class="alert alert-danger">Login failed</div>';
@@ -148,12 +217,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Signup function
     function signup() {
-        const username = document.getElementById('username').value;
+        const usernameInput = document.getElementById('username').value;
         const password = document.getElementById('password').value;
         fetch('http://127.0.0.1:8000/userauths/api/users/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password, user_type: 'student' })
+            body: JSON.stringify({ username: usernameInput, password, user_type: 'student' })
         })
         .then(response => {
             if (response.ok) showLogin();
@@ -176,26 +245,26 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         })
         .then(response => {
-            console.log('Logout status:', response.status);
-            if (!response.ok) {
-                throw new Error(`Logout failed with status: ${response.status}`);
-            }
+            if (!response.ok) throw new Error(`Logout failed with status: ${response.status}`);
             return response.json();
         })
         .then(data => {
-            console.log('Logout data:', data);
             token = null;
             userId = null;
+            firstName = null;
             localStorage.removeItem('token');
             localStorage.removeItem('userId');
+            localStorage.removeItem('firstName');
             updateNav();
         })
         .catch(error => {
             console.error('Logout error:', error);
             token = null;
             userId = null;
+            firstName = null;
             localStorage.removeItem('token');
             localStorage.removeItem('userId');
+            localStorage.removeItem('firstName');
             updateNav();
         });
     }
@@ -235,5 +304,5 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Initial load
-    updateNav();
+    fetchUserData(); // Fetch user data on load
 });
