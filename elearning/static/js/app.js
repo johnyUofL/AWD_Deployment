@@ -324,7 +324,7 @@ const App = (function() {
             state.enrolledCourseIds = enrolledCourseIds;
             state.enrollmentMap = enrollmentMap;
             
-            // Default view is all courses
+            // Default view is all courses list
             renderCourseList(courses, enrolledCourseIds, enrollmentMap, false);
         } catch (error) {
             console.error('Error fetching courses:', error);
@@ -333,15 +333,15 @@ const App = (function() {
     }
 
     function renderCourseList(courses, enrolledCourseIds, enrollmentMap, enrolledOnly = false, searchTerm = '') {
-        // Filter courses based on parameters
+        // Filter courses based on seach content
         let filteredCourses = courses;
         
-        // Filter by enrollment if needed
+        // Filter by enrollment when enrolled only is selected
         if (enrolledOnly) {
             filteredCourses = courses.filter(course => enrolledCourseIds.includes(course.id));
         }
         
-        // Create the results counter HTML - but don't show it yet
+        // Create the results counter HTML
         const resultsCounterHtml = `<div id="results-counter" class="filtered-results mb-3" style="display: none;"></div>`;
 
         content.innerHTML = `
@@ -407,7 +407,7 @@ const App = (function() {
             filterCourseCards(searchTerm);
         });
         
-        // Use the DOM-based filtering approach for real-time search
+        // DOM-based filtering approach for real-time search
         document.getElementById('course-search').addEventListener('input', (e) => {
             const searchTerm = e.target.value;
             filterCourseCards(searchTerm);
@@ -429,13 +429,13 @@ const App = (function() {
             button.addEventListener('click', () => viewProfile(button.getAttribute('data-user-id')));
         });
 
-        // Apply initial filtering if search term is provided
+        // filtering if search term is provided
         if (searchTerm) {
             filterCourseCards(searchTerm);
         }
     }
 
-    // New function for DOM-based filtering
+    // function for DOM-based filtering
     function filterCourseCards(searchTerm) {
         const term = searchTerm.toLowerCase();
         const courseCards = document.querySelectorAll('.course-card');
@@ -526,9 +526,9 @@ const App = (function() {
         formData.append('email', email);
         formData.append('password', password);
         
-        // Add required fields with default values
-        formData.append('first_name', username); // Default first name to username
-        formData.append('last_name', username); // Default last name to username too
+        // fields with default values
+        formData.append('first_name', username); // Default first name to username since a value is expected
+        formData.append('last_name', username); // Default last name to username since a value is expected 
         formData.append('user_type', 'student'); // Default to student
         formData.append('bio', ''); // Empty bio
         
@@ -593,7 +593,7 @@ const App = (function() {
         }
     }
 
-    // Add this function to show toasts
+    // function to show toasts
     function showToast(message, type = 'success') {
         const toastContainer = document.getElementById('toastContainer');
         const toastId = `toast-${Date.now()}`;
@@ -622,7 +622,7 @@ const App = (function() {
         });
     }
 
-    // Modify the enroll function to show a success toast
+    // function to show a success toast
     async function enroll(courseId) {
         const studentId = parseInt(state.userId);
         console.log('Attempting to enroll:', { courseId, studentId });
