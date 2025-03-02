@@ -593,6 +593,36 @@ const App = (function() {
         }
     }
 
+    // Add this function to show toasts
+    function showToast(message, type = 'success') {
+        const toastContainer = document.getElementById('toastContainer');
+        const toastId = `toast-${Date.now()}`;
+        const bgClass = type === 'success' ? 'bg-success' : 'bg-danger';
+        const iconClass = type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-circle-fill';
+        
+        const toastHtml = `
+            <div id="${toastId}" class="toast align-items-center text-white ${bgClass} border-0" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="d-flex">
+                    <div class="toast-body">
+                        <i class="bi ${iconClass} me-2"></i> ${message}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            </div>
+        `;
+        
+        toastContainer.insertAdjacentHTML('beforeend', toastHtml);
+        const toastElement = document.getElementById(toastId);
+        const toast = new bootstrap.Toast(toastElement, { autohide: true, delay: 3000 });
+        toast.show();
+        
+        // Remove toast from DOM after it's hidden
+        toastElement.addEventListener('hidden.bs.toast', () => {
+            toastElement.remove();
+        });
+    }
+
+    // Modify the enroll function to show a success toast
     async function enroll(courseId) {
         const studentId = parseInt(state.userId);
         console.log('Attempting to enroll:', { courseId, studentId });
@@ -618,17 +648,18 @@ const App = (function() {
                 body: JSON.stringify({ course: parseInt(courseId), student: studentId })
             });
             console.log('Enrollment successful:', data);
+            
+            // Show success toast
+            showToast('Thank you for enrolling in this course!', 'success');
+            
             fetchCourses();
         } catch (error) {
             console.error('Enroll error:', error);
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'alert alert-danger';
-            errorDiv.textContent = 'Failed to enroll: ' + error.message;
-            content.prepend(errorDiv);
-            setTimeout(() => errorDiv.remove(), 5000);
+            showToast('Failed to enroll: ' + error.message, 'danger');
         }
     }
 
+    // Modify the unenroll function to show a danger toast
     async function unenroll(enrollmentId) {
         if (!confirm('Are you sure you want to unenroll from this course?')) return;
 
@@ -645,14 +676,14 @@ const App = (function() {
                 throw new Error('Unenrollment failed: ' + response.status);
             }
             console.log(response.status === 404 ? 'Enrollment already deleted' : 'Successfully unenrolled');
+            
+            // Show danger toast
+            showToast('Sorry to see you leave this course.', 'danger');
+            
             fetchCourses();
         } catch (error) {
             console.error('Unenroll error:', error);
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'alert alert-danger';
-            errorDiv.textContent = 'Failed to unenroll: ' + error.message;
-            content.prepend(errorDiv);
-            setTimeout(() => errorDiv.remove(), 5000);
+            showToast('Failed to unenroll: ' + error.message, 'danger');
             fetchCourses();
         }
     }

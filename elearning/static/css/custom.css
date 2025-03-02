@@ -65,4 +65,30 @@
 #course-search:focus {
     border-color: #00b7ff;
     box-shadow: 0 0 0 0.25rem rgba(0, 183, 255, 0.25);
+}
+
+.toast {
+    opacity: 1 !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    transition: transform 0.3s ease;
+}
+
+.toast:hover {
+    transform: translateY(-3px);
+}
+
+.toast-container {
+    z-index: 1100;
+}
+
+.bg-success {
+    background-color: #28a745 !important;
+}
+
+.bg-danger {
+    background-color: #dc3545 !important;
+}
+
+.toast .bi {
+    font-size: 1.1rem;
 } 
