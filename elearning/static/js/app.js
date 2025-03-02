@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let token = localStorage.getItem('token');
     let userId = localStorage.getItem('userId');
     let firstName = localStorage.getItem('firstName');
+    let profilePic = localStorage.getItem('profilePic'); // Store profile picture path
 
     // Update navigation
     function updateNav() {
@@ -11,8 +12,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (token) {
             console.log('Token:', token); // Debug
             console.log('First name in updateNav:', firstName); // Debug
+            console.log('Profile pic in updateNav:', profilePic); // Debug
             navLinks.innerHTML = `
                 <li class="nav-item d-flex align-items-center">
+                    <img src="${profilePic || 'https://via.placeholder.com/30?text=User'}" alt="Profile" class="rounded-circle me-2" style="width: 30px; height: 30px; object-fit: cover;">
                     <span class="nav-link text-light me-2">Welcome! ${firstName || 'User'}</span>
                     <button class="nav-link btn btn-link text-light" id="logout-btn" title="Logout">
                         <i class="bi bi-box-arrow-right"></i>
@@ -62,9 +65,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const user = users.find(u => u.id === parseInt(userId));
                 console.log('Found user by ID:', user); // Debug
                 if (user) {
-                    firstName = user.first_name || user.username; // Use first_name, fallback to username
+                    firstName = user.first_name || user.username;
+                    profilePic = user.profile_picture_path; // Fetch profile picture path
                     localStorage.setItem('firstName', firstName);
-                    console.log('Updated firstName:', firstName); // Debug
+                    localStorage.setItem('profilePic', profilePic || ''); // Store even if null
+                    console.log('Updated user data:', { firstName: firstName, profilePic: profilePic }); // Debug
                     updateNav();
                 } else {
                     console.error('User not found for ID:', userId);
@@ -199,10 +204,12 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('Found user:', user); // Debug
             if (user) {
                 userId = user.id;
-                firstName = user.first_name || user.username; // Use first_name, fallback to username
+                firstName = user.first_name || user.username;
+                profilePic = user.profile_picture_path; // Set profile picture
                 localStorage.setItem('userId', userId);
                 localStorage.setItem('firstName', firstName);
-                console.log('Logged in user:', { id: userId, firstName: firstName }); // Debug
+                localStorage.setItem('profilePic', profilePic || ''); // Store even if null
+                console.log('Logged in user:', { id: userId, firstName: firstName, profilePic: profilePic }); // Debug
                 updateNav();
             } else {
                 console.error('User not found in response for:', usernameInput);
@@ -252,9 +259,11 @@ document.addEventListener('DOMContentLoaded', () => {
             token = null;
             userId = null;
             firstName = null;
+            profilePic = null;
             localStorage.removeItem('token');
             localStorage.removeItem('userId');
             localStorage.removeItem('firstName');
+            localStorage.removeItem('profilePic');
             updateNav();
         })
         .catch(error => {
@@ -262,9 +271,11 @@ document.addEventListener('DOMContentLoaded', () => {
             token = null;
             userId = null;
             firstName = null;
+            profilePic = null;
             localStorage.removeItem('token');
             localStorage.removeItem('userId');
             localStorage.removeItem('firstName');
+            localStorage.removeItem('profilePic');
             updateNav();
         });
     }
