@@ -5,9 +5,15 @@ from userauths.serializers import UserSerializer
 
 class CourseSerializer(serializers.ModelSerializer):
     teacher = UserSerializer(read_only=True)
+    enrollment_count = serializers.SerializerMethodField()
+    
     class Meta:
         model = Course
-        fields = ['id', 'title', 'description', 'teacher', 'cover_image_path', 'start_date', 'end_date', 'is_active']
+        fields = ['id', 'title', 'description', 'teacher', 'cover_image_path', 
+                  'start_date', 'end_date', 'is_active', 'enrollment_count']
+    
+    def get_enrollment_count(self, obj):
+        return obj.enrollments.filter(is_active=True).count()
 
 class EnrollmentSerializer(serializers.ModelSerializer):
     student = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), write_only=True)  # Write ID, read as serialized

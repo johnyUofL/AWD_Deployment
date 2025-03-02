@@ -220,7 +220,7 @@ const App = (function() {
                 e.preventDefault();
                 logout();
             });
-            fetchCourses();
+            checkUserRole();
         } else {
             navLinks.innerHTML = `
                 <li class="nav-item"><a class="nav-link" href="#" id="login-link">Login</a></li>
@@ -259,6 +259,22 @@ const App = (function() {
             }
         } else {
             updateNav();
+        }
+    }
+
+    async function checkUserRole() {
+        if (state.token) {
+            try {
+                const user = await apiFetch(`http://127.0.0.1:8000/userauths/api/users/${state.userId}/`);
+                if (user.user_type === 'teacher') {
+                    renderTeacherDashboard();
+                } else {
+                    fetchCourses(); // Default student view
+                }
+            } catch (error) {
+                console.error('Error checking user role:', error);
+                logout();
+            }
         }
     }
 
@@ -701,6 +717,300 @@ const App = (function() {
         } catch (error) {
             console.error('Error fetching profile or status updates:', error);
             content.innerHTML = `<div class="alert alert-danger">Error loading profile: ${error.message}</div>`;
+        }
+    }
+
+    function renderTeacherDashboard() {
+        content.innerHTML = `
+            <div class="container mt-4">
+                <div class="row mb-4">
+                    <div class="col">
+                        <h1>Teacher Dashboard</h1>
+                    </div>
+                    <div class="col-auto">
+                        <button id="create-course-btn" class="btn btn-primary">
+                            <i class="bi bi-plus-circle"></i> Create New Course
+                        </button>
+                    </div>
+                </div>
+                
+                <ul class="nav nav-tabs mb-4" id="teacherTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="courses-tab" data-bs-toggle="tab" data-bs-target="#courses" type="button" role="tab">
+                            My Courses
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="students-tab" data-bs-toggle="tab" data-bs-target="#students" type="button" role="tab">
+                            My Students
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="assignments-tab" data-bs-toggle="tab" data-bs-target="#assignments" type="button" role="tab">
+                            Assignments & Grades
+                        </button>
+                    </li>
+                </ul>
+                
+                <div class="tab-content" id="teacherTabContent">
+                    <div class="tab-pane fade show active" id="courses" role="tabpanel">
+                        <div id="teacher-courses-container">
+                            <div class="d-flex justify-content-center">
+                                <div class="spinner-border" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="students" role="tabpanel">
+                        <div id="teacher-students-container">
+                            <p>Select a course to view enrolled students</p>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="assignments" role="tabpanel">
+                        <div id="teacher-assignments-container">
+                            <p>Select a course to manage assignments and grades</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Add event listeners
+        document.getElementById('create-course-btn').addEventListener('click', showCreateCourseModal);
+        
+        // Load teacher's courses
+        fetchTeacherCourses();
+    }
+
+    async function fetchTeacherCourses() {
+        try {
+            const courses = await apiFetch('http://127.0.0.1:8000/api/core/courses/');
+            const teacherCourses = courses.filter(course => course.teacher.id === parseInt(state.userId));
+            
+            renderTeacherCourses(teacherCourses);
+        } catch (error) {
+            console.error('Error fetching teacher courses:', error);
+            document.getElementById('teacher-courses-container').innerHTML = 
+                `<div class="alert alert-danger">Error loading courses: ${error.message}</div>`;
+        }
+    }
+
+    function renderTeacherCourses(courses) {
+        const container = document.getElementById('teacher-courses-container');
+        
+        if (courses.length === 0) {
+            container.innerHTML = `
+                <div class="alert alert-info">
+                    You haven't created any courses yet. Click the "Create New Course" button to get started.
+                </div>
+            `;
+            return;
+        }
+        
+        container.innerHTML = `
+            <div class="row">
+                ${courses.map(course => `
+                    <div class="col-md-4 mb-4">
+                        <div class="card h-100">
+                            ${course.cover_image_path ? 
+                                `<img src="${course.cover_image_path}" class="card-img-top" alt="${course.title}" style="height: 180px; object-fit: cover;">` : 
+                                `<div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 180px;">
+                                    <i class="bi bi-image text-secondary" style="font-size: 3rem;"></i>
+                                </div>`
+                            }
+                            <div class="card-body">
+                                <h5 class="card-title">${course.title}</h5>
+                                <p class="card-text text-truncate">${course.description}</p>
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="badge bg-${course.is_active ? 'success' : 'secondary'}">
+                                        ${course.is_active ? 'Active' : 'Inactive'}
+                                    </span>
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                            Manage
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end">
+                                            <li><a class="dropdown-item view-course" href="#" data-course-id="${course.id}">View Details</a></li>
+                                            <li><a class="dropdown-item edit-course" href="#" data-course-id="${course.id}">Edit Course</a></li>
+                                            <li><a class="dropdown-item view-students" href="#" data-course-id="${course.id}">View Students</a></li>
+                                            <li><a class="dropdown-item manage-assignments" href="#" data-course-id="${course.id}">Manage Assignments</a></li>
+                                            <li><hr class="dropdown-divider"></li>
+                                            <li><a class="dropdown-item toggle-status" href="#" data-course-id="${course.id}" data-status="${course.is_active}">
+                                                ${course.is_active ? 'Deactivate' : 'Activate'} Course
+                                            </a></li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card-footer text-muted">
+                                <small>Created: ${new Date(course.start_date).toLocaleDateString()}</small>
+                            </div>
+                        </div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+        
+        // Add event listeners
+        document.querySelectorAll('.view-course').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                viewCourseDetails(btn.getAttribute('data-course-id'));
+            });
+        });
+        
+        document.querySelectorAll('.edit-course').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                editCourse(btn.getAttribute('data-course-id'));
+            });
+        });
+        
+        document.querySelectorAll('.view-students').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                viewCourseStudents(btn.getAttribute('data-course-id'));
+            });
+        });
+        
+        document.querySelectorAll('.manage-assignments').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                manageCourseAssignments(btn.getAttribute('data-course-id'));
+            });
+        });
+        
+        document.querySelectorAll('.toggle-status').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                toggleCourseStatus(
+                    btn.getAttribute('data-course-id'),
+                    btn.getAttribute('data-status') === 'true'
+                );
+            });
+        });
+    }
+
+    function showCreateCourseModal() {
+        // Get today's date in YYYY-MM-DD format for min attribute
+        const today = new Date().toISOString().split('T')[0];
+        
+        // Create modal HTML
+        const modalHtml = `
+            <div class="modal fade" id="createCourseModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Create New Course</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="create-course-form">
+                                <div class="mb-3">
+                                    <label for="course-title" class="form-label">Course Title</label>
+                                    <input type="text" class="form-control" id="course-title" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="course-description" class="form-label">Description</label>
+                                    <textarea class="form-control" id="course-description" rows="4" required></textarea>
+                                </div>
+                                <div class="row mb-3">
+                                    <div class="col">
+                                        <label for="course-start-date" class="form-label">Start Date</label>
+                                        <input type="date" class="form-control" id="course-start-date" min="${today}" required>
+                                    </div>
+                                    <div class="col">
+                                        <label for="course-end-date" class="form-label">End Date</label>
+                                        <input type="date" class="form-control" id="course-end-date" min="${today}" required>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="course-cover-image" class="form-label">Cover Image</label>
+                                    <input type="file" class="form-control" id="course-cover-image" accept="image/*">
+                                </div>
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="course-is-active" checked>
+                                    <label class="form-check-label" for="course-is-active">
+                                        Make course active immediately
+                                    </label>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-primary" id="save-course-btn">Create Course</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add modal to DOM
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // Initialize modal
+        const modal = new bootstrap.Modal(document.getElementById('createCourseModal'));
+        modal.show();
+        
+        // Add event listener to save button
+        document.getElementById('save-course-btn').addEventListener('click', () => createCourse(modal));
+        
+        // Add validation for end date to be after start date
+        document.getElementById('course-start-date').addEventListener('change', function() {
+            document.getElementById('course-end-date').min = this.value;
+        });
+    }
+
+    async function createCourse(modal) {
+        const title = document.getElementById('course-title').value;
+        const description = document.getElementById('course-description').value;
+        const startDate = document.getElementById('course-start-date').value;
+        const endDate = document.getElementById('course-end-date').value;
+        const isActive = document.getElementById('course-is-active').checked;
+        const coverImageFile = document.getElementById('course-cover-image').files[0];
+        
+        // Validate end date is after start date
+        if (new Date(endDate) <= new Date(startDate)) {
+            alert('End date must be after start date');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('title', title);
+        formData.append('description', description);
+        formData.append('start_date', startDate);
+        formData.append('end_date', endDate);
+        formData.append('is_active', isActive);
+        formData.append('teacher', state.userId);
+        
+        if (coverImageFile) {
+            formData.append('cover_image_path', coverImageFile);
+        }
+        
+        try {
+            const response = await apiFetch('http://127.0.0.1:8000/api/core/courses/', {
+                method: 'POST',
+                body: formData,
+                headers: {} // Let the browser set the content type for FormData
+            });
+            
+            console.log('Course created:', response);
+            modal.hide();
+            
+            // Remove modal from DOM after hiding
+            document.getElementById('createCourseModal').addEventListener('hidden.bs.modal', function() {
+                this.remove();
+            });
+            
+            // Show success message
+            showToast('Course created successfully!', 'success');
+            
+            // Refresh courses list
+            fetchTeacherCourses();
+        } catch (error) {
+            console.error('Error creating course:', error);
+            showToast('Failed to create course: ' + error.message, 'danger');
         }
     }
 
