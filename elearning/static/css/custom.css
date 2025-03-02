@@ -7,4 +7,49 @@
     transform: scale(1.05);
     box-shadow: 0 10px 20px rgba(0,0,0,0.19), 0 6px 6px rgba(0,0,0,0.23);
     border-color: #00b7ff;
+}
+
+.btn-group .btn {
+    transition: all 0.2s ease;
+}
+
+#course-search {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+}
+
+#search-button {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+}
+
+.alert-info {
+    background-color: #e3f2fd;
+    border-color: #b3e5fc;
+    color: #0277bd;
+}
+
+@media (max-width: 768px) {
+    .d-flex.justify-content-between.align-items-center {
+        flex-direction: column;
+        align-items: flex-start !important;
+    }
+    
+    .d-flex.justify-content-between.align-items-center .d-flex {
+        margin-top: 1rem;
+        width: 100%;
+    }
+    
+    .input-group {
+        width: 100% !important;
+        margin-bottom: 0.5rem;
+    }
+    
+    .btn-group {
+        width: 100%;
+    }
+    
+    .btn-group .btn {
+        flex: 1;
+    }
 } 

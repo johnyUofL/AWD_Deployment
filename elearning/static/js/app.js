@@ -5,7 +5,10 @@ const App = (function() {
         token: localStorage.getItem('token'),
         userId: localStorage.getItem('userId'),
         firstName: localStorage.getItem('firstName'),
-        profilePic: localStorage.getItem('profilePic')
+        profilePic: localStorage.getItem('profilePic'),
+        allCourses: [],
+        enrolledCourseIds: [],
+        enrollmentMap: {}
     };
 
     function getCsrfToken() {
@@ -316,10 +319,59 @@ const App = (function() {
             });
             const enrolledCourseIds = userEnrollments.map(e => e.course_detail.id);
 
-            content.innerHTML = `
-                <h1 class="mb-4">Available Courses</h1>
-                <div class="row">
-                    ${courses.map(course => `
+            // Store courses in state for filtering
+            state.allCourses = courses;
+            state.enrolledCourseIds = enrolledCourseIds;
+            state.enrollmentMap = enrollmentMap;
+            
+            // Default view is all courses
+            renderCourseList(courses, enrolledCourseIds, enrollmentMap, false);
+        } catch (error) {
+            console.error('Error fetching courses:', error);
+            content.innerHTML = `<div class="alert alert-danger">Error loading courses: ${error.message}</div>`;
+        }
+    }
+
+    function renderCourseList(courses, enrolledCourseIds, enrollmentMap, enrolledOnly = false, searchTerm = '') {
+        // Filter courses based on parameters
+        let filteredCourses = courses;
+        
+        // Filter by enrollment if needed
+        if (enrolledOnly) {
+            filteredCourses = courses.filter(course => enrolledCourseIds.includes(course.id));
+        }
+        
+        // Filter by search term if provided
+        if (searchTerm) {
+            const term = searchTerm.toLowerCase();
+            filteredCourses = filteredCourses.filter(course => 
+                course.title.toLowerCase().includes(term) || 
+                course.teacher.username.toLowerCase().includes(term) ||
+                (course.description && course.description.toLowerCase().includes(term))
+            );
+        }
+
+        content.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1>Available Courses</h1>
+                <div class="d-flex">
+                    <div class="input-group me-2" style="width: 300px;">
+                        <input type="text" id="course-search" class="form-control" placeholder="Search courses..." value="${searchTerm}">
+                        <button class="btn btn-outline-secondary" type="button" id="search-button">
+                            <i class="bi bi-search"></i>
+                        </button>
+                    </div>
+                    <div class="btn-group" role="group">
+                        <button type="button" class="btn ${!enrolledOnly ? 'btn-primary' : 'btn-outline-primary'}" id="all-courses-btn">All Courses</button>
+                        <button type="button" class="btn ${enrolledOnly ? 'btn-primary' : 'btn-outline-primary'}" id="enrolled-courses-btn">My Enrolled</button>
+                    </div>
+                </div>
+            </div>
+            
+            ${filteredCourses.length === 0 ? 
+                `<div class="alert alert-info">No courses found matching your criteria.</div>` : 
+                `<div class="row">
+                    ${filteredCourses.map(course => `
                         <div class="col-md-4 mb-3">
                             <div class="card h-100 course-card">
                                 ${course.cover_image_path ? `<img src="${course.cover_image_path}" class="card-img-top" alt="${course.title}" style="max-height: 200px; object-fit: cover;">` : `<img src="https://via.placeholder.com/200x200?text=No+Image" class="card-img-top" alt="No Image" style="max-height: 200px; object-fit: cover;">`}
@@ -343,25 +395,46 @@ const App = (function() {
                             </div>
                         </div>
                     `).join('')}
-                </div>
-            `;
+                </div>`
+            }
+        `;
 
-            document.querySelectorAll('.enroll-btn').forEach(button => {
-                button.addEventListener('click', () => enroll(button.getAttribute('data-course-id')));
-            });
-            document.querySelectorAll('.unenroll-btn').forEach(button => {
-                button.addEventListener('click', () => unenroll(button.getAttribute('data-enrollment-id')));
-            });
-            document.querySelectorAll('.btn-primary:not(.enroll-btn):not(.profile-btn)').forEach(button => {
-                button.addEventListener('click', () => openCourse(button.getAttribute('data-course-id')));
-            });
-            document.querySelectorAll('.profile-btn').forEach(button => {
-                button.addEventListener('click', () => viewProfile(button.getAttribute('data-user-id')));
-            });
-        } catch (error) {
-            console.error('Error fetching courses:', error);
-            content.innerHTML = `<div class="alert alert-danger">Error loading courses: ${error.message}</div>`;
-        }
+        // Add event listeners
+        document.getElementById('all-courses-btn').addEventListener('click', () => {
+            renderCourseList(state.allCourses, state.enrolledCourseIds, state.enrollmentMap, false, document.getElementById('course-search').value);
+        });
+        
+        document.getElementById('enrolled-courses-btn').addEventListener('click', () => {
+            renderCourseList(state.allCourses, state.enrolledCourseIds, state.enrollmentMap, true, document.getElementById('course-search').value);
+        });
+        
+        document.getElementById('search-button').addEventListener('click', () => {
+            const searchTerm = document.getElementById('course-search').value;
+            renderCourseList(state.allCourses, state.enrolledCourseIds, state.enrollmentMap, enrolledOnly, searchTerm);
+        });
+        
+        document.getElementById('course-search').addEventListener('keyup', (e) => {
+            if (e.key === 'Enter') {
+                const searchTerm = e.target.value;
+                renderCourseList(state.allCourses, state.enrolledCourseIds, state.enrollmentMap, enrolledOnly, searchTerm);
+            }
+        });
+
+        document.querySelectorAll('.enroll-btn').forEach(button => {
+            button.addEventListener('click', () => enroll(button.getAttribute('data-course-id')));
+        });
+        
+        document.querySelectorAll('.unenroll-btn').forEach(button => {
+            button.addEventListener('click', () => unenroll(button.getAttribute('data-enrollment-id')));
+        });
+        
+        document.querySelectorAll('.btn-primary:not(.enroll-btn):not(.profile-btn):not(#all-courses-btn):not(#enrolled-courses-btn):not(#search-button)').forEach(button => {
+            button.addEventListener('click', () => openCourse(button.getAttribute('data-course-id')));
+        });
+        
+        document.querySelectorAll('.profile-btn').forEach(button => {
+            button.addEventListener('click', () => viewProfile(button.getAttribute('data-user-id')));
+        });
     }
 
     async function login() {
