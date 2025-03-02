@@ -96,7 +96,8 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .then(response => response.json())
         .then(user => {
-            content.innerHTML = `
+            // Append modal to body instead of overwriting content
+            const modalHtml = `
                 <div class="modal fade" id="userInfoModal" tabindex="-1" aria-labelledby="userInfoModalLabel" aria-hidden="true">
                     <div class="modal-dialog">
                         <div class="modal-content">
@@ -137,9 +138,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
             `;
+            document.body.insertAdjacentHTML('beforeend', modalHtml); // Append to body
             const modal = new bootstrap.Modal(document.getElementById('userInfoModal'));
             modal.show();
             document.getElementById('saveUserInfo').addEventListener('click', () => saveUserInfo(modal));
+            // Clean up modal on close to avoid duplicates
+            document.getElementById('userInfoModal').addEventListener('hidden.bs.modal', () => {
+                document.getElementById('userInfoModal').remove();
+            });
         })
         .catch(error => console.error('Error fetching user info:', error));
     }
@@ -152,10 +158,10 @@ document.addEventListener('DOMContentLoaded', () => {
         formData.append('bio', document.getElementById('bio').value);
         const profilePictureFile = document.getElementById('profilePicture').files[0];
         if (profilePictureFile) {
-            formData.append('profile_picture_path', profilePictureFile); // Match model field name
-            console.log('Uploading file:', profilePictureFile.name); // Debug
+            formData.append('profile_picture_path', profilePictureFile);
+            console.log('Uploading file:', profilePictureFile.name);
         } else {
-            console.log('No new profile picture selected'); // Debug
+            console.log('No new profile picture selected');
         }
 
         fetch(`http://127.0.0.1:8000/userauths/api/users/${userId}/`, {
@@ -166,7 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
             body: formData
         })
         .then(response => {
-            console.log('PATCH response status:', response.status); // Debug
+            console.log('PATCH response status:', response.status);
             if (!response.ok) {
                 return response.text().then(text => { throw new Error(`Update failed: ${response.status} - ${text}`); });
             }
@@ -174,13 +180,13 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .then(user => {
             firstName = user.first_name || user.username;
-            profilePic = user.profile_picture_path ? `${user.profile_picture_path}?${new Date().getTime()}` : profilePic; // Add timestamp to avoid caching
+            profilePic = user.profile_picture_path ? `${user.profile_picture_path}?${new Date().getTime()}` : profilePic;
             localStorage.setItem('firstName', firstName);
             localStorage.setItem('profilePic', profilePic || '');
             console.log('User updated:', { firstName: firstName, profilePic: profilePic });
             modal.hide();
             updateNav();
-            fetchCourses();
+            fetchCourses(); // Ensure courses are refreshed
         })
         .catch(error => console.error('Error updating user info:', error));
     }
