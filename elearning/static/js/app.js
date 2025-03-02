@@ -6,6 +6,67 @@ document.addEventListener('DOMContentLoaded', () => {
     let firstName = localStorage.getItem('firstName');
     let profilePic = localStorage.getItem('profilePic');
 
+    // Helper to get CSRF token (moved up)
+    function getCsrfToken() {
+        const name = 'csrftoken';
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    // Show login form (moved up)
+    function showLogin() {
+        content.innerHTML = `
+            <h1 class="mb-4">Login</h1>
+            <form id="login-form" class="needs-validation" novalidate>
+                <div class="mb-3">
+                    <label for="username" class="form-label">Username</label>
+                    <input type="text" id="username" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" id="password" class="form-control" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Login</button>
+            </form>
+        `;
+        document.getElementById('login-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            login();
+        });
+    }
+
+    // Show signup form (moved up)
+    function showSignup() {
+        content.innerHTML = `
+            <h1 class="mb-4">Signup</h1>
+            <form id="signup-form" class="needs-validation" novalidate>
+                <div class="mb-3">
+                    <label for="username" class="form-label">Username</label>
+                    <input type="text" id="username" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label for="password" class="form-label">Password</label>
+                    <input type="password" id="password" class="form-control" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Signup</button>
+            </form>
+        `;
+        document.getElementById('signup-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            signup();
+        });
+    }
+
     // Update navigation
     function updateNav() {
         navLinks.innerHTML = '';
@@ -96,7 +157,6 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .then(response => response.json())
         .then(user => {
-            // Append modal to body instead of overwriting content
             const modalHtml = `
                 <div class="modal fade" id="userInfoModal" tabindex="-1" aria-labelledby="userInfoModalLabel" aria-hidden="true">
                     <div class="modal-dialog">
@@ -138,11 +198,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     </div>
                 </div>
             `;
-            document.body.insertAdjacentHTML('beforeend', modalHtml); // Append to body
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
             const modal = new bootstrap.Modal(document.getElementById('userInfoModal'));
             modal.show();
             document.getElementById('saveUserInfo').addEventListener('click', () => saveUserInfo(modal));
-            // Clean up modal on close to avoid duplicates
             document.getElementById('userInfoModal').addEventListener('hidden.bs.modal', () => {
                 document.getElementById('userInfoModal').remove();
             });
@@ -186,7 +245,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('User updated:', { firstName: firstName, profilePic: profilePic });
             modal.hide();
             updateNav();
-            fetchCourses(); // Ensure courses are refreshed
+            fetchCourses();
         })
         .catch(error => console.error('Error updating user info:', error));
     }
@@ -203,9 +262,25 @@ document.addEventListener('DOMContentLoaded', () => {
             })
             .then(response => response.json())
             .then(enrollments => {
-                const enrolledCourseIds = enrollments
-                    .filter(e => e.student === parseInt(userId))
-                    .map(e => e.course);
+                console.log('All enrollments:', enrollments);
+                
+                // Filter enrollments for the current user and only active ones
+                const userEnrollments = enrollments.filter(e => 
+                    e.student_detail.id === parseInt(userId) && 
+                    e.is_active === true
+                );
+                
+                console.log('User active enrollments:', userEnrollments);
+                
+                // Create a map of course IDs to enrollment IDs for quick lookup
+                const enrollmentMap = {};
+                userEnrollments.forEach(enrollment => {
+                    enrollmentMap[enrollment.course_detail.id] = enrollment.id;
+                });
+                
+                // Get the list of enrolled course IDs
+                const enrolledCourseIds = userEnrollments.map(e => e.course_detail.id);
+                
                 content.innerHTML = `
                     <h1 class="mb-4">Available Courses</h1>
                     <div class="row">
@@ -216,62 +291,49 @@ document.addEventListener('DOMContentLoaded', () => {
                                     <div class="card-body">
                                         <h5 class="card-title">${course.title}</h5>
                                         <p class="card-text">Taught by ${course.teacher.username}</p>
-                                        ${enrolledCourseIds.includes(course.id) ? '<span class="badge bg-success">Enrolled</span>' : `<button class="btn btn-primary btn-sm" data-course-id="${course.id}">Enroll</button>`}
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            ${enrolledCourseIds.includes(course.id) ? 
+                                                `<span class="badge bg-success">Enrolled</span>
+                                                 <div>
+                                                    <button class="btn btn-primary btn-sm me-1" data-course-id="${course.id}">Open</button>
+                                                    <button class="btn btn-danger btn-sm unenroll-btn" data-enrollment-id="${enrollmentMap[course.id]}">Unenroll</button>
+                                                 </div>` 
+                                                : 
+                                                `<button class="btn btn-primary btn-sm enroll-btn" data-course-id="${course.id}">Enroll</button>`
+                                            }
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         `).join('')}
                     </div>
                 `;
-                document.querySelectorAll('[data-course-id]').forEach(button => {
-                    button.addEventListener('click', () => enroll(parseInt(button.dataset.courseId)));
+                
+                // Add event listeners for enroll buttons
+                document.querySelectorAll('.enroll-btn').forEach(button => {
+                    button.addEventListener('click', () => {
+                        enroll(button.getAttribute('data-course-id'));
+                    });
+                });
+                
+                // Add event listeners for unenroll buttons
+                document.querySelectorAll('.unenroll-btn').forEach(button => {
+                    button.addEventListener('click', () => {
+                        unenroll(button.getAttribute('data-enrollment-id'));
+                    });
+                });
+                
+                // Add event listeners for open buttons
+                document.querySelectorAll('.btn-primary:not(.enroll-btn)').forEach(button => {
+                    button.addEventListener('click', () => {
+                        openCourse(button.getAttribute('data-course-id'));
+                    });
                 });
             });
         })
-        .catch(error => console.error('Error fetching courses:', error));
-    }
-
-    // Login form
-    function showLogin() {
-        content.innerHTML = `
-            <h1 class="mb-4">Login</h1>
-            <form id="login-form" class="needs-validation" novalidate>
-                <div class="mb-3">
-                    <label for="username" class="form-label">Username</label>
-                    <input type="text" id="username" class="form-control" required>
-                </div>
-                <div class="mb-3">
-                    <label for="password" class="form-label">Password</label>
-                    <input type="password" id="password" class="form-control" required>
-                </div>
-                <button type="submit" class="btn btn-primary">Login</button>
-            </form>
-        `;
-        document.getElementById('login-form').addEventListener('submit', (e) => {
-            e.preventDefault();
-            login();
-        });
-    }
-
-    // Signup form
-    function showSignup() {
-        content.innerHTML = `
-            <h1 class="mb-4">Signup</h1>
-            <form id="signup-form" class="needs-validation" novalidate>
-                <div class="mb-3">
-                    <label for="username" class="form-label">Username</label>
-                    <input type="text" id="username" class="form-control" required>
-                </div>
-                <div class="mb-3">
-                    <label for="password" class="form-label">Password</label>
-                    <input type="password" id="password" class="form-control" required>
-                </div>
-                <button type="submit" class="btn btn-primary">Signup</button>
-            </form>
-        `;
-        document.getElementById('signup-form').addEventListener('submit', (e) => {
-            e.preventDefault();
-            signup();
+        .catch(error => {
+            console.error('Error fetching courses:', error);
+            content.innerHTML = `<div class="alert alert-danger">Error loading courses: ${error.message}</div>`;
         });
     }
 
@@ -388,36 +450,111 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Enroll function
     function enroll(courseId) {
-        fetch('http://127.0.0.1:8000/api/core/enrollments/', {
-            method: 'POST',
+        const studentId = parseInt(userId);
+        console.log('Attempting to enroll:', { courseId, studentId });
+
+        fetch(`http://127.0.0.1:8000/api/core/enrollments/`, {
             headers: {
-                'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify({ course: courseId, student: userId })
+            }
         })
-        .then(response => {
-            if (response.ok) fetchCourses();
-            else throw new Error('Enrollment failed');
+        .then(response => response.json())
+        .then(enrollments => {
+            console.log('Existing enrollments:', JSON.stringify(enrollments));
+            
+            const existingEnrollment = enrollments.find(e => 
+                e.student_detail.id === studentId && 
+                e.course_detail.id === parseInt(courseId) &&
+                e.is_active === true
+            );
+            
+            console.log('Already actively enrolled in this course:', existingEnrollment);
+            
+            if (existingEnrollment) {
+                console.log('Already enrolled in this course');
+                fetchCourses();
+                return;
+            }
+            
+            return fetch('http://127.0.0.1:8000/api/core/enrollments/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`,
+                    'X-CSRFToken': getCsrfToken()
+                },
+                body: JSON.stringify({ 
+                    course: parseInt(courseId), 
+                    student: studentId 
+                })
+            })
+            .then(response => {
+                console.log('Enroll POST response status:', response.status);
+                if (!response.ok) {
+                    return response.json().then(data => {
+                        throw new Error('Enrollment failed: ' + JSON.stringify(data));
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Enrollment successful:', data);
+                fetchCourses();
+            });
         })
-        .catch(error => console.error('Enroll error:', error));
+        .catch(error => {
+            console.error('Enroll error:', error);
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'alert alert-danger';
+            errorDiv.textContent = 'Failed to enroll: ' + error.message;
+            content.prepend(errorDiv);
+            setTimeout(() => errorDiv.remove(), 5000);
+        });
     }
 
-    // Helper to get CSRF token
-    function getCsrfToken() {
-        const name = 'csrftoken';
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== '') {
-            const cookies = document.cookie.split(';');
-            for (let i = 0; i < cookies.length; i++) {
-                const cookie = cookies[i].trim();
-                if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                    break;
-                }
-            }
+    // Function to unenroll from a course
+    function unenroll(enrollmentId) {
+        if (!confirm('Are you sure you want to unenroll from this course?')) {
+            return;
         }
-        return cookieValue;
+
+        fetch(`http://127.0.0.1:8000/api/core/enrollments/${enrollmentId}/`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'X-CSRFToken': getCsrfToken()
+            }
+        })
+        .then(response => {
+            console.log('Unenroll response status:', response.status);
+            if (!response.ok) {
+                if (response.status === 404) {
+                    console.log('Enrollment already deleted or not found, refreshing');
+                } else {
+                    return response.text().then(text => {
+                        throw new Error('Unenrollment failed: ' + text);
+                    });
+                }
+            } else {
+                console.log('Successfully unenrolled');
+            }
+            return fetchCourses();
+        })
+        .catch(error => {
+            console.error('Unenroll error:', error);
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'alert alert-danger';
+            errorDiv.textContent = 'Failed to unenroll: ' + error.message;
+            content.prepend(errorDiv);
+            setTimeout(() => errorDiv.remove(), 5000);
+            fetchCourses();
+        });
+    }
+
+    // Function to open a course (placeholder for now)
+    function openCourse(courseId) {
+        console.log('Opening course:', courseId);
+        alert('Course page would open here. Implementation pending.');
     }
 
     // Initial load

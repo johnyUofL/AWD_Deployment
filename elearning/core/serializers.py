@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Course, Enrollment, CourseMaterial, VideoResource, Assignment, Submission, Grade, CourseFeedback, Announcement
+from userauths.models import User  # Import User model
 from userauths.serializers import UserSerializer
 
 class CourseSerializer(serializers.ModelSerializer):
@@ -9,11 +10,14 @@ class CourseSerializer(serializers.ModelSerializer):
         fields = ['id', 'title', 'description', 'teacher', 'cover_image_path', 'start_date', 'end_date', 'is_active']
 
 class EnrollmentSerializer(serializers.ModelSerializer):
-    student = UserSerializer(read_only=True)
-    course = CourseSerializer(read_only=True)
+    student = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), write_only=True)  # Write ID, read as serialized
+    course = serializers.PrimaryKeyRelatedField(queryset=Course.objects.all(), write_only=True)  # Write ID, read as serialized
+    student_detail = UserSerializer(source='student', read_only=True)  # Rename for output
+    course_detail = CourseSerializer(source='course', read_only=True)  # Rename for output
+    
     class Meta:
         model = Enrollment
-        fields = ['id', 'student', 'course', 'enrollment_date', 'is_active']
+        fields = ['id', 'student', 'course', 'student_detail', 'course_detail', 'enrollment_date', 'is_active']
 
 class CourseMaterialSerializer(serializers.ModelSerializer):
     class Meta:
