@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth import authenticate, login, logout
 from rest_framework import viewsets, permissions
+from django.http import JsonResponse  # Add this import
 from .models import User, UserPermission, StatusUpdate, Notification
 from .serializers import UserSerializer, UserPermissionSerializer, StatusUpdateSerializer, NotificationSerializer
 from .forms import UserSignupForm
@@ -57,7 +58,7 @@ class CustomLoginView(LoginView):
         return self.request.POST.get('next', '/home/')  # Redirect to home if 'next' is not provided
 
 def custom_logout(request):
-    # Get the referer (previous page) to determine if this is an admin logout
+    # Get the referer to determine if this is an admin logout
     referer = request.META.get('HTTP_REFERER', '')
     is_admin_logout = '/admin/' in referer
     
@@ -68,5 +69,5 @@ def custom_logout(request):
     if is_admin_logout:
         return redirect('/admin/login/?next=/admin/')
     else:
-        # Use the default logout behavior for non-admin logouts
-        return redirect('login')
+        # Return JSON response for API frontend instead of redirect
+        return JsonResponse({'status': 'success'})
