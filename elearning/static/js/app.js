@@ -4,31 +4,35 @@ document.addEventListener('DOMContentLoaded', () => {
     let token = localStorage.getItem('token');
     let userId = localStorage.getItem('userId');
     let firstName = localStorage.getItem('firstName');
-    let profilePic = localStorage.getItem('profilePic'); // Store profile picture path
+    let profilePic = localStorage.getItem('profilePic');
 
     // Update navigation
     function updateNav() {
         navLinks.innerHTML = '';
         if (token) {
-            console.log('Token:', token); // Debug
-            console.log('First name in updateNav:', firstName); // Debug
-            console.log('Profile pic in updateNav:', profilePic); // Debug
+            console.log('Token:', token);
+            console.log('First name in updateNav:', firstName);
+            console.log('Profile pic in updateNav:', profilePic);
             navLinks.innerHTML = `
-                <li class="nav-item d-flex align-items-center">
-                    <img src="${profilePic || 'https://via.placeholder.com/30?text=User'}" alt="Profile" class="rounded-circle me-2" style="width: 30px; height: 30px; object-fit: cover;">
-                    <span class="nav-link text-light me-2">Welcome! ${firstName || 'User'}</span>
-                    <button class="nav-link btn btn-link text-light" id="logout-btn" title="Logout">
-                        <i class="bi bi-box-arrow-right"></i>
-                    </button>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle text-light d-flex align-items-center" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <img src="${profilePic || 'https://via.placeholder.com/30?text=User'}" alt="Profile" class="rounded-circle me-2" style="width: 30px; height: 30px; object-fit: cover;">
+                        Welcome! ${firstName || 'User'}
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                        <li><a class="dropdown-item" href="#" id="userInfoLink">User Info</a></li>
+                        <li><a class="dropdown-item" href="#" id="logoutLink">Logout</a></li>
+                    </ul>
                 </li>
             `;
-            const logoutBtn = document.getElementById('logout-btn');
-            if (logoutBtn) {
-                logoutBtn.addEventListener('click', logout);
-                console.log('Logout button added'); // Debug
-            } else {
-                console.error('Logout button not found');
-            }
+            document.getElementById('userInfoLink').addEventListener('click', (e) => {
+                e.preventDefault();
+                showUserInfoModal();
+            });
+            document.getElementById('logoutLink').addEventListener('click', (e) => {
+                e.preventDefault();
+                logout();
+            });
             fetchCourses();
         } else {
             navLinks.innerHTML = `
@@ -54,35 +58,131 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Authorization': `Bearer ${token}` }
             })
             .then(response => {
-                console.log('Users response status:', response.status); // Debug
+                console.log('Users response status:', response.status);
                 if (!response.ok) {
                     throw new Error('Users fetch failed: ' + response.status);
                 }
                 return response.json();
             })
             .then(users => {
-                console.log('Users response data:', JSON.stringify(users, null, 2)); // Debug
+                console.log('Users response data:', JSON.stringify(users, null, 2));
                 const user = users.find(u => u.id === parseInt(userId));
-                console.log('Found user by ID:', user); // Debug
+                console.log('Found user by ID:', user);
                 if (user) {
                     firstName = user.first_name || user.username;
-                    profilePic = user.profile_picture_path; // Fetch profile picture path
+                    profilePic = user.profile_picture_path;
                     localStorage.setItem('firstName', firstName);
-                    localStorage.setItem('profilePic', profilePic || ''); // Store even if null
-                    console.log('Updated user data:', { firstName: firstName, profilePic: profilePic }); // Debug
+                    localStorage.setItem('profilePic', profilePic || '');
+                    console.log('Updated user data:', { firstName: firstName, profilePic: profilePic });
                     updateNav();
                 } else {
                     console.error('User not found for ID:', userId);
-                    logout(); // Clear invalid token
+                    logout();
                 }
             })
             .catch(error => {
                 console.error('Fetch user data error:', error);
-                logout(); // Clear invalid token and force login
+                logout();
             });
         } else {
-            updateNav(); // No token, show login/signup
+            updateNav();
         }
+    }
+
+    // Show user info modal
+    function showUserInfoModal() {
+        fetch(`http://127.0.0.1:8000/userauths/api/users/${userId}/`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        })
+        .then(response => response.json())
+        .then(user => {
+            content.innerHTML = `
+                <div class="modal fade" id="userInfoModal" tabindex="-1" aria-labelledby="userInfoModalLabel" aria-hidden="true">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="userInfoModalLabel">User Information</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="userInfoForm" enctype="multipart/form-data">
+                                    <div class="mb-3">
+                                        <label for="email" class="form-label">Email (Read-Only)</label>
+                                        <input type="email" class="form-control" id="email" value="${user.email || ''}" readonly>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="firstName" class="form-label">First Name</label>
+                                        <input type="text" class="form-control" id="firstName" value="${user.first_name || ''}">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="lastName" class="form-label">Last Name</label>
+                                        <input type="text" class="form-control" id="lastName" value="${user.last_name || ''}">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="bio" class="form-label">Bio</label>
+                                        <textarea class="form-control" id="bio">${user.bio || ''}</textarea>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="profilePicture" class="form-label">Profile Picture</label>
+                                        <input type="file" class="form-control" id="profilePicture" name="profile_picture_path" accept="image/*">
+                                        <img src="${user.profile_picture_path || 'https://via.placeholder.com/100?text=No+Image'}" alt="Current Profile" class="mt-2 rounded-circle" style="max-width: 100px; height: auto;">
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                <button type="button" class="btn btn-primary" id="saveUserInfo">Save changes</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            const modal = new bootstrap.Modal(document.getElementById('userInfoModal'));
+            modal.show();
+            document.getElementById('saveUserInfo').addEventListener('click', () => saveUserInfo(modal));
+        })
+        .catch(error => console.error('Error fetching user info:', error));
+    }
+
+    // Save user info to database
+    function saveUserInfo(modal) {
+        const formData = new FormData();
+        formData.append('first_name', document.getElementById('firstName').value);
+        formData.append('last_name', document.getElementById('lastName').value);
+        formData.append('bio', document.getElementById('bio').value);
+        const profilePictureFile = document.getElementById('profilePicture').files[0];
+        if (profilePictureFile) {
+            formData.append('profile_picture_path', profilePictureFile); // Match model field name
+            console.log('Uploading file:', profilePictureFile.name); // Debug
+        } else {
+            console.log('No new profile picture selected'); // Debug
+        }
+
+        fetch(`http://127.0.0.1:8000/userauths/api/users/${userId}/`, {
+            method: 'PATCH',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            },
+            body: formData
+        })
+        .then(response => {
+            console.log('PATCH response status:', response.status); // Debug
+            if (!response.ok) {
+                return response.text().then(text => { throw new Error(`Update failed: ${response.status} - ${text}`); });
+            }
+            return response.json();
+        })
+        .then(user => {
+            firstName = user.first_name || user.username;
+            profilePic = user.profile_picture_path ? `${user.profile_picture_path}?${new Date().getTime()}` : profilePic; // Add timestamp to avoid caching
+            localStorage.setItem('firstName', firstName);
+            localStorage.setItem('profilePic', profilePic || '');
+            console.log('User updated:', { firstName: firstName, profilePic: profilePic });
+            modal.hide();
+            updateNav();
+            fetchCourses();
+        })
+        .catch(error => console.error('Error updating user info:', error));
     }
 
     // Fetch and display courses
@@ -173,43 +273,43 @@ document.addEventListener('DOMContentLoaded', () => {
     function login() {
         const usernameInput = document.getElementById('username').value;
         const password = document.getElementById('password').value;
-        console.log('Login attempt with username:', usernameInput); // Debug
+        console.log('Login attempt with username:', usernameInput);
         fetch('http://127.0.0.1:8000/api/token/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username: usernameInput, password })
         })
         .then(response => {
-            console.log('Token response status:', response.status); // Debug
+            console.log('Token response status:', response.status);
             if (!response.ok) throw new Error('Token fetch failed: ' + response.status);
             return response.json();
         })
         .then(data => {
             token = data.access;
             localStorage.setItem('token', token);
-            console.log('Token received:', token); // Debug
+            console.log('Token received:', token);
             return fetch('http://127.0.0.1:8000/userauths/api/users/', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
         })
         .then(response => {
-            console.log('Users response status:', response.status); // Debug
+            console.log('Users response status:', response.status);
             if (!response.ok) throw new Error('Users fetch failed: ' + response.status);
             return response.json();
         })
         .then(users => {
-            console.log('Users response data:', JSON.stringify(users, null, 2)); // Debug
+            console.log('Users response data:', JSON.stringify(users, null, 2));
             const user = users.find(u => u.username.toLowerCase() === usernameInput.toLowerCase());
-            console.log('Searching for username:', usernameInput.toLowerCase()); // Debug
-            console.log('Found user:', user); // Debug
+            console.log('Searching for username:', usernameInput.toLowerCase());
+            console.log('Found user:', user);
             if (user) {
                 userId = user.id;
                 firstName = user.first_name || user.username;
-                profilePic = user.profile_picture_path; // Set profile picture
+                profilePic = user.profile_picture_path;
                 localStorage.setItem('userId', userId);
                 localStorage.setItem('firstName', firstName);
-                localStorage.setItem('profilePic', profilePic || ''); // Store even if null
-                console.log('Logged in user:', { id: userId, firstName: firstName, profilePic: profilePic }); // Debug
+                localStorage.setItem('profilePic', profilePic || '');
+                console.log('Logged in user:', { id: userId, firstName: firstName, profilePic: profilePic });
                 updateNav();
             } else {
                 console.error('User not found in response for:', usernameInput);
@@ -315,5 +415,5 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Initial load
-    fetchUserData(); // Fetch user data on load
+    fetchUserData();
 });
