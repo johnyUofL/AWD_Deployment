@@ -758,7 +758,9 @@ export async function uploadVideo(courseId, modal, state) {
         
         modal.hide();
         showToast('Video uploaded successfully!', 'success');
-        viewCourseDetails(courseId, state);
+        
+        // Change this line to call manageCourseContent instead of viewCourseDetails
+        manageCourseContent(courseId, state);
     } catch (error) {
         console.error('Error uploading video:', error);
         showToast('Failed to upload video: ' + error.message, 'danger');
