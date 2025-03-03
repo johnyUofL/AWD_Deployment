@@ -2501,10 +2501,14 @@ export async function organizeContentView(courseId, state) {
         // Fetch all materials for the course
         const materials = await apiFetch(`http://127.0.0.1:8000/api/core/materials/?course=${courseId}`, {}, state.token);
         
-        // Fetch course structure if it exists (we'll need to create this API endpoint)
+        // Fetch course structure if it exists
         let courseStructure = [];
         try {
-            courseStructure = await apiFetch(`http://127.0.0.1:8000/api/core/course-structure/${courseId}/`, {}, state.token);
+            // Use the correct endpoint to get a specific course structure
+            const structureResponse = await apiFetch(`http://127.0.0.1:8000/api/core/course-structure/?course=${courseId}`, {}, state.token);
+            if (structureResponse && structureResponse.length > 0) {
+                courseStructure = structureResponse[0].structure_data;
+            }
         } catch (error) {
             console.log('No existing course structure found, creating new one');
         }
@@ -2986,8 +2990,8 @@ async function saveCourseStructure(courseId, state) {
     };
     
     try {
-        // Send the structure to the server
-        await apiFetch('http://127.0.0.1:8000/api/core/course-structure/', {
+        // Use the custom action endpoint
+        await apiFetch('http://127.0.0.1:8000/api/core/course-structure/save_structure/', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'

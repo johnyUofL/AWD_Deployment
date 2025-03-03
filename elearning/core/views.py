@@ -105,9 +105,13 @@ class CourseStructureViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
+        course_id = self.request.query_params.get('course')
+        
         if user.user_type == 'teacher':
-            # Teachers can only access structures for their courses
-            return CourseStructure.objects.filter(course__teacher=user)
+            queryset = CourseStructure.objects.filter(course__teacher=user)
+            if course_id:
+                queryset = queryset.filter(course_id=course_id)
+            return queryset
         return CourseStructure.objects.none()
     
     @action(detail=False, methods=['post'])
