@@ -2190,3 +2190,297 @@ export async function editDocumentMaterial(materialId, courseId, state) {
         showToast('Failed to edit document: ' + error.message, 'danger');
     }
 }
+
+// Show modal for adding an image
+export function showAddImageModal(courseId, state) {
+    const modalHtml = `
+        <div class="modal fade" id="addImageModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Add Image</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="add-image-form">
+                            <div class="mb-3">
+                                <label for="image-title" class="form-label">Image Title</label>
+                                <input type="text" class="form-control" id="image-title" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="image-description" class="form-label">Description</label>
+                                <textarea class="form-control" id="image-description" rows="3"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="image-file" class="form-label">Image File</label>
+                                <input type="file" class="form-control" id="image-file" accept="image/*" required>
+                                <small class="text-muted">Supported formats: JPG, PNG, GIF, etc.</small>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="image-is-visible" checked>
+                                <label class="form-check-label" for="image-is-visible">
+                                    Visible to students
+                                </label>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" id="upload-image-btn">Upload Image</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add modal to the DOM
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Initialize the modal
+    const modal = new bootstrap.Modal(document.getElementById('addImageModal'));
+    modal.show();
+    
+    // Handle image upload
+    document.getElementById('upload-image-btn').addEventListener('click', () => {
+        uploadImage(courseId, modal, state);
+    });
+    
+    // Clean up the modal when it's closed
+    document.getElementById('addImageModal').addEventListener('hidden.bs.modal', () => {
+        document.getElementById('addImageModal').remove();
+    });
+}
+
+// Upload an image
+export async function uploadImage(courseId, modal, state) {
+    const title = document.getElementById('image-title').value;
+    const description = document.getElementById('image-description').value;
+    const imageFile = document.getElementById('image-file').files[0];
+    const isVisible = document.getElementById('image-is-visible').checked;
+    
+    if (!title || !imageFile) {
+        showToast('Please fill in all required fields', 'danger');
+        return;
+    }
+    
+    try {
+        const formData = new FormData();
+        formData.append('title', title);
+        formData.append('description', description);
+        formData.append('course', courseId);
+        formData.append('file_path', imageFile);
+        formData.append('file_type', 'image');
+        formData.append('is_visible', isVisible);
+        
+        await apiFetch('http://127.0.0.1:8000/api/core/materials/', {
+            method: 'POST',
+            body: formData,
+            headers: {}
+        }, state.token);
+        
+        modal.hide();
+        showToast('Image uploaded successfully!', 'success');
+        
+        // Call manageCourseContent instead of viewCourseDetails
+        manageCourseContent(courseId, state);
+    } catch (error) {
+        console.error('Error uploading image:', error);
+        showToast('Failed to upload image: ' + error.message, 'danger');
+    }
+}
+
+// Show modal for adding audio
+export function showAddAudioModal(courseId, state) {
+    const modalHtml = `
+        <div class="modal fade" id="addAudioModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Add Audio</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="add-audio-form">
+                            <div class="mb-3">
+                                <label for="audio-title" class="form-label">Audio Title</label>
+                                <input type="text" class="form-control" id="audio-title" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="audio-description" class="form-label">Description</label>
+                                <textarea class="form-control" id="audio-description" rows="3"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="audio-file" class="form-label">Audio File</label>
+                                <input type="file" class="form-control" id="audio-file" accept="audio/*" required>
+                                <small class="text-muted">Supported formats: MP3, WAV, etc.</small>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="audio-is-visible" checked>
+                                <label class="form-check-label" for="audio-is-visible">
+                                    Visible to students
+                                </label>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" id="upload-audio-btn">Upload Audio</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add modal to the DOM
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Initialize the modal
+    const modal = new bootstrap.Modal(document.getElementById('addAudioModal'));
+    modal.show();
+    
+    // Handle audio upload
+    document.getElementById('upload-audio-btn').addEventListener('click', () => {
+        uploadAudio(courseId, modal, state);
+    });
+    
+    // Clean up the modal when it's closed
+    document.getElementById('addAudioModal').addEventListener('hidden.bs.modal', () => {
+        document.getElementById('addAudioModal').remove();
+    });
+}
+
+// Upload audio
+export async function uploadAudio(courseId, modal, state) {
+    const title = document.getElementById('audio-title').value;
+    const description = document.getElementById('audio-description').value;
+    const audioFile = document.getElementById('audio-file').files[0];
+    const isVisible = document.getElementById('audio-is-visible').checked;
+    
+    if (!title || !audioFile) {
+        showToast('Please fill in all required fields', 'danger');
+        return;
+    }
+    
+    try {
+        const formData = new FormData();
+        formData.append('title', title);
+        formData.append('description', description);
+        formData.append('course', courseId);
+        formData.append('file_path', audioFile);
+        formData.append('file_type', 'audio');
+        formData.append('is_visible', isVisible);
+        
+        await apiFetch('http://127.0.0.1:8000/api/core/materials/', {
+            method: 'POST',
+            body: formData,
+            headers: {}
+        }, state.token);
+        
+        modal.hide();
+        showToast('Audio uploaded successfully!', 'success');
+        
+        // Call manageCourseContent instead of viewCourseDetails
+        manageCourseContent(courseId, state);
+    } catch (error) {
+        console.error('Error uploading audio:', error);
+        showToast('Failed to upload audio: ' + error.message, 'danger');
+    }
+}
+
+// Show modal for adding other material
+export function showAddOtherMaterialModal(courseId, state) {
+    const modalHtml = `
+        <div class="modal fade" id="addOtherMaterialModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Add Other Material</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="add-other-material-form">
+                            <div class="mb-3">
+                                <label for="other-title" class="form-label">Material Title</label>
+                                <input type="text" class="form-control" id="other-title" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="other-description" class="form-label">Description</label>
+                                <textarea class="form-control" id="other-description" rows="3"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="other-file" class="form-label">File</label>
+                                <input type="file" class="form-control" id="other-file" required>
+                                <small class="text-muted">Any file type</small>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="other-is-visible" checked>
+                                <label class="form-check-label" for="other-is-visible">
+                                    Visible to students
+                                </label>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" id="upload-other-btn">Upload Material</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add modal to the DOM
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Initialize the modal
+    const modal = new bootstrap.Modal(document.getElementById('addOtherMaterialModal'));
+    modal.show();
+    
+    // Handle other material upload
+    document.getElementById('upload-other-btn').addEventListener('click', () => {
+        uploadOtherMaterial(courseId, modal, state);
+    });
+    
+    // Clean up the modal when it's closed
+    document.getElementById('addOtherMaterialModal').addEventListener('hidden.bs.modal', () => {
+        document.getElementById('addOtherMaterialModal').remove();
+    });
+}
+
+// Upload other material
+export async function uploadOtherMaterial(courseId, modal, state) {
+    const title = document.getElementById('other-title').value;
+    const description = document.getElementById('other-description').value;
+    const otherFile = document.getElementById('other-file').files[0];
+    const isVisible = document.getElementById('other-is-visible').checked;
+    
+    if (!title || !otherFile) {
+        showToast('Please fill in all required fields', 'danger');
+        return;
+    }
+    
+    try {
+        const formData = new FormData();
+        formData.append('title', title);
+        formData.append('description', description);
+        formData.append('course', courseId);
+        formData.append('file_path', otherFile);
+        formData.append('file_type', 'other');
+        formData.append('is_visible', isVisible);
+        
+        await apiFetch('http://127.0.0.1:8000/api/core/materials/', {
+            method: 'POST',
+            body: formData,
+            headers: {}
+        }, state.token);
+        
+        modal.hide();
+        showToast('Material uploaded successfully!', 'success');
+        
+        // Call manageCourseContent instead of viewCourseDetails
+        manageCourseContent(courseId, state);
+    } catch (error) {
+        console.error('Error uploading material:', error);
+        showToast('Failed to upload material: ' + error.message, 'danger');
+    }
+}
