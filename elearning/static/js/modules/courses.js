@@ -118,15 +118,24 @@ export function renderCourseList(courses, enrolledCourseIds, enrollmentMap, enro
     });
 
     document.querySelectorAll('.enroll-btn').forEach(button => {
-        button.addEventListener('click', () => enroll(button.getAttribute('data-course-id'), state));
+        button.addEventListener('click', () => {
+            const courseId = button.getAttribute('data-course-id');
+            enroll(courseId, state);
+        });
     });
     
     document.querySelectorAll('.unenroll-btn').forEach(button => {
-        button.addEventListener('click', () => unenroll(button.getAttribute('data-enrollment-id'), state));
+        button.addEventListener('click', () => {
+            const enrollmentId = button.getAttribute('data-enrollment-id');
+            unenroll(enrollmentId, state);
+        });
     });
     
-    document.querySelectorAll('.btn-primary:not(.enroll-btn):not(.profile-btn):not(#all-courses-btn):not(#enrolled-courses-btn):not(#search-button)').forEach(button => {
-        button.addEventListener('click', () => openCourse(button.getAttribute('data-course-id')));
+    document.querySelectorAll('.card-body button[data-course-id]:not(.enroll-btn)').forEach(button => {
+        button.addEventListener('click', () => {
+            const courseId = button.getAttribute('data-course-id');
+            openCourse(courseId, state);
+        });
     });
     
     document.querySelectorAll('.profile-btn').forEach(button => {
@@ -234,9 +243,14 @@ export async function unenroll(enrollmentId, state) {
     }
 }
 
-export function openCourse(courseId) {
+export function openCourse(courseId, state) {
     console.log('Opening course:', courseId);
-    alert('Course page would open here. Implementation pending.');
+    import('../modules/courseContent.js').then(module => {
+        module.renderCourseContentPage(courseId, state);
+    }).catch(error => {
+        console.error('Error importing courseContent.js:', error);
+        alert('Could not load course content. Please try again later.');
+    });
 }
 
 export async function viewProfile(userId, state) {

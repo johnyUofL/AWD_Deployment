@@ -2999,6 +2999,9 @@ async function saveCourseStructure(courseId, state) {
             body: JSON.stringify(structureData)
         }, state.token);
         
+        // Log the saved structure to the browser console
+        console.log('Saved Course Structure:', JSON.stringify(structureData, null, 2));
+        
         showToast('Course structure saved successfully!', 'success');
     } catch (error) {
         console.error('Error saving course structure:', error);
