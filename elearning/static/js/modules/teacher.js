@@ -1554,6 +1554,8 @@ async function deleteMaterial(materialId, courseId, state) {
         }, state.token);
         
         showToast(`${typeLabel} deleted successfully!`, 'success');
+        
+        // Call manageCourseContent instead of viewCourseDetails
         manageCourseContent(courseId, state);
     } catch (error) {
         console.error('Error deleting material:', error);
@@ -1979,5 +1981,212 @@ async function deleteVideo(materialId, courseId, state) {
     } catch (error) {
         console.error('Error deleting video:', error);
         showToast('Failed to delete video: ' + error.message, 'danger');
+    }
+}
+
+// Show modal for adding a document
+export function showAddDocumentModal(courseId, state) {
+    const modalHtml = `
+        <div class="modal fade" id="addDocumentModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Add Document</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="add-document-form">
+                            <div class="mb-3">
+                                <label for="document-title" class="form-label">Document Title</label>
+                                <input type="text" class="form-control" id="document-title" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="document-description" class="form-label">Description</label>
+                                <textarea class="form-control" id="document-description" rows="3"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="document-file" class="form-label">Document File</label>
+                                <input type="file" class="form-control" id="document-file" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt" required>
+                                <small class="text-muted">Supported formats: PDF, Word, PowerPoint, Excel, Text</small>
+                            </div>
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="document-is-visible" checked>
+                                <label class="form-check-label" for="document-is-visible">
+                                    Visible to students
+                                </label>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" id="upload-document-btn">Upload Document</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add modal to the DOM
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Initialize the modal
+    const modal = new bootstrap.Modal(document.getElementById('addDocumentModal'));
+    modal.show();
+    
+    // Handle document upload
+    document.getElementById('upload-document-btn').addEventListener('click', () => {
+        uploadDocument(courseId, modal, state);
+    });
+    
+    // Clean up the modal when it's closed
+    document.getElementById('addDocumentModal').addEventListener('hidden.bs.modal', () => {
+        document.getElementById('addDocumentModal').remove();
+    });
+}
+
+// Upload a document
+export async function uploadDocument(courseId, modal, state) {
+    const title = document.getElementById('document-title').value;
+    const description = document.getElementById('document-description').value;
+    const documentFile = document.getElementById('document-file').files[0];
+    const isVisible = document.getElementById('document-is-visible').checked;
+    
+    if (!title || !documentFile) {
+        showToast('Please fill in all required fields', 'danger');
+        return;
+    }
+    
+    try {
+        const formData = new FormData();
+        formData.append('title', title);
+        formData.append('description', description);
+        formData.append('course', courseId);
+        formData.append('file_path', documentFile);
+        formData.append('file_type', 'document');
+        formData.append('is_visible', isVisible);
+        
+        await apiFetch('http://127.0.0.1:8000/api/core/materials/', {
+            method: 'POST',
+            body: formData,
+            headers: {}
+        }, state.token);
+        
+        modal.hide();
+        showToast('Document uploaded successfully!', 'success');
+        
+        // Call manageCourseContent instead of viewCourseDetails
+        manageCourseContent(courseId, state);
+    } catch (error) {
+        console.error('Error uploading document:', error);
+        showToast('Failed to upload document: ' + error.message, 'danger');
+    }
+}
+
+// Function to edit a document
+export async function editDocumentMaterial(materialId, courseId, state) {
+    try {
+        // Fetch the material details
+        const material = await apiFetch(`http://127.0.0.1:8000/api/core/materials/${materialId}/`, {}, state.token);
+        
+        // Create modal HTML
+        const modalHtml = `
+            <div class="modal fade" id="editDocumentModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Edit Document</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="edit-document-form">
+                                <div class="mb-3">
+                                    <label for="edit-document-title" class="form-label">Document Title</label>
+                                    <input type="text" class="form-control" id="edit-document-title" value="${material.title}" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="edit-document-description" class="form-label">Description</label>
+                                    <textarea class="form-control" id="edit-document-description" rows="3">${material.description}</textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="edit-document-file" class="form-label">Document File (leave empty to keep current)</label>
+                                    <input type="file" class="form-control" id="edit-document-file" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt">
+                                    <small class="text-muted">Current file: ${material.file_path.split('/').pop()}</small>
+                                </div>
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="edit-document-is-visible" ${material.is_visible ? 'checked' : ''}>
+                                    <label class="form-check-label" for="edit-document-is-visible">
+                                        Visible to students
+                                    </label>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-danger me-auto" id="delete-document-btn">Delete Document</button>
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-primary" id="update-document-btn">Update Document</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add modal to the DOM
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // Initialize the modal
+        const modal = new bootstrap.Modal(document.getElementById('editDocumentModal'));
+        modal.show();
+        
+        // Handle document deletion
+        document.getElementById('delete-document-btn').addEventListener('click', () => {
+            modal.hide();
+            deleteMaterial(materialId, courseId, state);
+        });
+        
+        // Handle document update
+        document.getElementById('update-document-btn').addEventListener('click', async () => {
+            const title = document.getElementById('edit-document-title').value;
+            const description = document.getElementById('edit-document-description').value;
+            const documentFile = document.getElementById('edit-document-file').files[0];
+            const isVisible = document.getElementById('edit-document-is-visible').checked;
+            
+            if (!title) {
+                showToast('Please fill in all required fields', 'warning');
+                return;
+            }
+            
+            try {
+                const formData = new FormData();
+                formData.append('title', title);
+                formData.append('description', description);
+                formData.append('is_visible', isVisible);
+                
+                if (documentFile) {
+                    formData.append('file_path', documentFile);
+                }
+                
+                await apiFetch(`http://127.0.0.1:8000/api/core/materials/${materialId}/`, {
+                    method: 'PATCH',
+                    body: formData,
+                    headers: {}
+                }, state.token);
+                
+                modal.hide();
+                showToast('Document updated successfully!', 'success');
+                manageCourseContent(courseId, state);
+            } catch (error) {
+                console.error('Error updating document:', error);
+                showToast('Failed to update document: ' + error.message, 'danger');
+            }
+        });
+        
+        // Clean up the modal when it's closed
+        document.getElementById('editDocumentModal').addEventListener('hidden.bs.modal', () => {
+            document.getElementById('editDocumentModal').remove();
+        });
+        
+    } catch (error) {
+        console.error('Error editing document material:', error);
+        showToast('Failed to edit document: ' + error.message, 'danger');
     }
 }
