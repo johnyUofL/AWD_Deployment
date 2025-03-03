@@ -1,5 +1,5 @@
 // modules/teacher.js
-import { apiFetch } from './api.js';
+import { apiFetch } from '../utils/api.js';
 import { showToast } from '../components/toast.js';
 
 export function renderTeacherDashboard(state) {
@@ -300,15 +300,68 @@ export async function createCourse(modal, state) {
 
 export async function viewCourseDetails(courseId, state) {
     try {
+        // Fetch course details
         const course = await apiFetch(`http://127.0.0.1:8000/api/core/courses/${courseId}/`, {}, state.token);
-        const materials = await apiFetch(`http://127.0.0.1:8000/api/core/materials/?course=${courseId}`, {}, state.token);
-        const assignments = await apiFetch(`http://127.0.0.1:8000/api/core/assignments/?course=${courseId}`, {}, state.token);
         
-        // Group materials by type
-        const videoMaterials = materials.filter(m => m.file_type === 'video');
-        const documentMaterials = materials.filter(m => m.file_type !== 'video');
+        // Create modal HTML
+        const modalHtml = `
+            <div class="modal fade" id="courseDetailsModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Course Details</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    ${course.cover_image_path ? 
+                                        `<img src="${course.cover_image_path}" class="img-fluid rounded" alt="${course.title}">` : 
+                                        `<div class="bg-light d-flex align-items-center justify-content-center rounded" style="height: 200px;">
+                                            <i class="bi bi-image text-secondary" style="font-size: 3rem;"></i>
+                                        </div>`
+                                    }
+                                </div>
+                                <div class="col-md-8">
+                                    <h4>${course.title}</h4>
+                                    <p>${course.description}</p>
+                                    <div class="row mt-3">
+                                        <div class="col-md-6">
+                                            <p><strong>Start Date:</strong> ${new Date(course.start_date).toLocaleDateString()}</p>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <p><strong>End Date:</strong> ${new Date(course.end_date).toLocaleDateString()}</p>
+                                        </div>
+                                    </div>
+                                    <p><strong>Status:</strong> 
+                                        <span class="badge bg-${course.is_active ? 'success' : 'secondary'}">
+                                            ${course.is_active ? 'Active' : 'Inactive'}
+                                        </span>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            <button type="button" class="btn btn-primary edit-course-btn" data-course-id="${course.id}">Edit Course</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
         
-        renderCourseDetailView(course, videoMaterials, documentMaterials, assignments, state);
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        const modal = new bootstrap.Modal(document.getElementById('courseDetailsModal'));
+        modal.show();
+        
+        document.querySelector('.edit-course-btn').addEventListener('click', () => {
+            modal.hide();
+            editCourse(course.id, state);
+        });
+        
+        document.getElementById('courseDetailsModal').addEventListener('hidden.bs.modal', function() {
+            this.remove();
+        });
     } catch (error) {
         console.error('Error fetching course details:', error);
         showToast('Failed to load course details: ' + error.message, 'danger');
@@ -763,4 +816,400 @@ export function formatDuration(seconds) {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+}
+
+// Edit Course functionality
+export async function editCourse(courseId, state) {
+    try {
+        // Fetch the course details
+        const course = await apiFetch(`http://127.0.0.1:8000/api/core/courses/${courseId}/`, {}, state.token);
+        
+        // Format dates for the form
+        const startDate = new Date(course.start_date).toISOString().split('T')[0];
+        const endDate = new Date(course.end_date).toISOString().split('T')[0];
+        
+        // Create modal HTML
+        const modalHtml = `
+            <div class="modal fade" id="editCourseModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Edit Course</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="edit-course-form">
+                                <div class="mb-3">
+                                    <label for="course-title" class="form-label">Course Title</label>
+                                    <input type="text" class="form-control" id="course-title" value="${course.title}" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="course-description" class="form-label">Description</label>
+                                    <textarea class="form-control" id="course-description" rows="4" required>${course.description}</textarea>
+                                </div>
+                                <div class="row mb-3">
+                                    <div class="col">
+                                        <label for="course-start-date" class="form-label">Start Date</label>
+                                        <input type="date" class="form-control" id="course-start-date" value="${startDate}" required>
+                                    </div>
+                                    <div class="col">
+                                        <label for="course-end-date" class="form-label">End Date</label>
+                                        <input type="date" class="form-control" id="course-end-date" value="${endDate}" required>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="course-cover-image" class="form-label">Cover Image (Leave empty to keep current image)</label>
+                                    <input type="file" class="form-control" id="course-cover-image" accept="image/*">
+                                    ${course.cover_image_path ? 
+                                        `<div class="mt-2">
+                                            <img src="${course.cover_image_path}" class="img-thumbnail" style="max-height: 100px;">
+                                        </div>` : ''}
+                                </div>
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="course-is-active" ${course.is_active ? 'checked' : ''}>
+                                    <label class="form-check-label" for="course-is-active">
+                                        Course is active
+                                    </label>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-primary" id="save-course-btn">Save Changes</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        const modal = new bootstrap.Modal(document.getElementById('editCourseModal'));
+        modal.show();
+        
+        document.getElementById('save-course-btn').addEventListener('click', () => {
+            updateCourse(courseId, modal, state);
+        });
+        
+        document.getElementById('editCourseModal').addEventListener('hidden.bs.modal', function() {
+            this.remove();
+        });
+    } catch (error) {
+        console.error('Error fetching course details:', error);
+        showToast('Failed to load course details: ' + error.message, 'danger');
+    }
+}
+
+export async function updateCourse(courseId, modal, state) {
+    const title = document.getElementById('course-title').value;
+    const description = document.getElementById('course-description').value;
+    const startDate = document.getElementById('course-start-date').value;
+    const endDate = document.getElementById('course-end-date').value;
+    const isActive = document.getElementById('course-is-active').checked;
+    const coverImage = document.getElementById('course-cover-image').files[0];
+    
+    if (!title || !description || !startDate || !endDate) {
+        showToast('Please fill in all required fields', 'danger');
+        return;
+    }
+    
+    try {
+        const formData = new FormData();
+        formData.append('title', title);
+        formData.append('description', description);
+        formData.append('start_date', startDate);
+        formData.append('end_date', endDate);
+        formData.append('is_active', isActive);
+        
+        if (coverImage) {
+            formData.append('cover_image_path', coverImage);
+        }
+        
+        await apiFetch(`http://127.0.0.1:8000/api/core/courses/${courseId}/`, {
+            method: 'PATCH',
+            body: formData,
+            headers: {}
+        }, state.token);
+        
+        modal.hide();
+        showToast('Course updated successfully!', 'success');
+        fetchTeacherCourses(state);
+    } catch (error) {
+        console.error('Error updating course:', error);
+        showToast('Failed to update course: ' + error.message, 'danger');
+    }
+}
+
+// View Students functionality
+export async function viewCourseStudents(courseId, state) {
+    try {
+        // Fetch course details
+        const course = await apiFetch(`http://127.0.0.1:8000/api/core/courses/${courseId}/`, {}, state.token);
+        
+        // Fetch enrollments for this course
+        const enrollments = await apiFetch(`http://127.0.0.1:8000/api/core/enrollments/`, {}, state.token);
+        const courseEnrollments = enrollments.filter(enrollment => 
+            enrollment.course_detail.id === parseInt(courseId) && 
+            enrollment.is_active === true
+        );
+        
+        // Update the students tab content
+        const studentsContainer = document.getElementById('teacher-students-container');
+        
+        if (courseEnrollments.length === 0) {
+            studentsContainer.innerHTML = `
+                <div class="alert alert-info">
+                    <h4 class="alert-heading">No Students Enrolled</h4>
+                    <p>There are currently no students enrolled in "${course.title}".</p>
+                </div>
+            `;
+        } else {
+            studentsContainer.innerHTML = `
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Students Enrolled in "${course.title}"</h5>
+                        <span class="badge bg-primary">${courseEnrollments.length} Students</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Student</th>
+                                        <th>Email</th>
+                                        <th>Enrollment Date</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${courseEnrollments.map(enrollment => `
+                                        <tr>
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    <img src="${enrollment.student_detail.profile_picture_path || 'https://via.placeholder.com/40?text=User'}" 
+                                                         class="rounded-circle me-2" style="width: 40px; height: 40px; object-fit: cover;">
+                                                    ${enrollment.student_detail.first_name} ${enrollment.student_detail.last_name}
+                                                </div>
+                                            </td>
+                                            <td>${enrollment.student_detail.email || 'N/A'}</td>
+                                            <td>${new Date(enrollment.enrollment_date).toLocaleDateString()}</td>
+                                            <td>
+                                                <button class="btn btn-sm btn-outline-danger remove-student" 
+                                                        data-enrollment-id="${enrollment.id}">
+                                                    Remove
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Switch to the students tab
+            document.getElementById('students-tab').click();
+            
+            // Add event listeners
+            document.querySelectorAll('.remove-student').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    removeStudentFromCourse(btn.getAttribute('data-enrollment-id'), courseId, state);
+                });
+            });
+        }
+    } catch (error) {
+        console.error('Error fetching course students:', error);
+        showToast('Failed to load students: ' + error.message, 'danger');
+    }
+}
+
+export async function removeStudentFromCourse(enrollmentId, courseId, state) {
+    if (!confirm('Are you sure you want to remove this student from the course?')) {
+        return;
+    }
+    
+    try {
+        await apiFetch(`http://127.0.0.1:8000/api/core/enrollments/${enrollmentId}/`, {
+            method: 'DELETE'
+        }, state.token);
+        
+        showToast('Student removed successfully', 'success');
+        viewCourseStudents(courseId, state);
+    } catch (error) {
+        console.error('Error removing student:', error);
+        showToast('Failed to remove student: ' + error.message, 'danger');
+    }
+}
+
+// Manage Assignments functionality
+export async function manageCourseAssignments(courseId, state) {
+    try {
+        // Fetch course details
+        const course = await apiFetch(`http://127.0.0.1:8000/api/core/courses/${courseId}/`, {}, state.token);
+        
+        // Fetch assignments for this course
+        const assignments = await apiFetch(`http://127.0.0.1:8000/api/core/assignments/?course=${courseId}`, {}, state.token);
+        
+        // Update the assignments tab content
+        const assignmentsContainer = document.getElementById('teacher-assignments-container');
+        
+        assignmentsContainer.innerHTML = `
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h4>Assignments for "${course.title}"</h4>
+                <button class="btn btn-primary" id="add-assignment-btn">
+                    <i class="bi bi-plus-circle"></i> Add Assignment
+                </button>
+            </div>
+            
+            ${assignments.length === 0 ? 
+                `<div class="alert alert-info">
+                    <p>No assignments have been created for this course yet.</p>
+                </div>` : 
+                `<div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Due Date</th>
+                                <th>Points</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${assignments.map(assignment => `
+                                <tr>
+                                    <td>${assignment.title}</td>
+                                    <td>${new Date(assignment.due_date).toLocaleString()}</td>
+                                    <td>${assignment.total_points}</td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <button class="btn btn-sm btn-outline-primary view-submissions-btn" data-id="${assignment.id}">
+                                                <i class="bi bi-check-circle"></i> Submissions
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-secondary edit-assignment-btn" data-id="${assignment.id}">
+                                                <i class="bi bi-pencil"></i>
+                                            </button>
+                                            <button class="btn btn-sm btn-outline-danger delete-assignment-btn" data-id="${assignment.id}">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>`
+            }
+        `;
+        
+        // Switch to the assignments tab
+        document.getElementById('assignments-tab').click();
+        
+        // Add event listeners
+        document.getElementById('add-assignment-btn').addEventListener('click', () => {
+            showAddAssignmentModal(courseId, state);
+        });
+        
+        document.querySelectorAll('.view-submissions-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                viewAssignmentSubmissions(btn.getAttribute('data-id'), state);
+            });
+        });
+        
+        document.querySelectorAll('.edit-assignment-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                editAssignment(btn.getAttribute('data-id'), state);
+            });
+        });
+        
+        document.querySelectorAll('.delete-assignment-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                deleteAssignment(btn.getAttribute('data-id'), courseId, state);
+            });
+        });
+    } catch (error) {
+        console.error('Error fetching course assignments:', error);
+        showToast('Failed to load assignments: ' + error.message, 'danger');
+    }
+}
+
+export function showAddAssignmentModal(courseId, state) {
+    // Get tomorrow's date in YYYY-MM-DDThh:mm format for min attribute
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().slice(0, 16);
+    
+    // Create modal HTML
+    const modalHtml = `
+        <div class="modal fade" id="addAssignmentModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Add New Assignment</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="add-assignment-form">
+                            <div class="mb-3">
+                                <label for="assignment-title" class="form-label">Title</label>
+                                <input type="text" class="form-control" id="assignment-title" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="assignment-description" class="form-label">Description</label>
+                                <textarea class="form-control" id="assignment-description" rows="4" required></textarea>
+                            </div>
+                            <div class="row mb-3">
+                                <div class="col">
+                                    <label for="assignment-due-date" class="form-label">Due Date</label>
+                                    <input type="datetime-local" class="form-control" id="assignment-due-date" min="${tomorrowStr}" required>
+                                </div>
+                                <div class="col">
+                                    <label for="assignment-points" class="form-label">Total Points</label>
+                                    <input type="number" class="form-control" id="assignment-points" min="1" value="100" required>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" id="save-assignment-btn">Create Assignment</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    const modal = new bootstrap.Modal(document.getElementById('addAssignmentModal'));
+    modal.show();
+    
+    document.getElementById('save-assignment-btn').addEventListener('click', () => {
+        createAssignment(courseId, modal, state);
+    });
+    
+    document.getElementById('addAssignmentModal').addEventListener('hidden.bs.modal', function() {
+        this.remove();
+    });
+}
+
+// Toggle Course Status functionality
+export async function toggleCourseStatus(courseId, currentStatus, state) {
+    try {
+        // Toggle the status
+        const newStatus = !currentStatus;
+        
+        // Update the course
+        await apiFetch(`http://127.0.0.1:8000/api/core/courses/${courseId}/`, {
+            method: 'PATCH',
+            body: JSON.stringify({
+                is_active: newStatus
+            })
+        }, state.token);
+        
+        showToast(`Course ${newStatus ? 'activated' : 'deactivated'} successfully!`, 'success');
+        fetchTeacherCourses(state);
+    } catch (error) {
+        console.error('Error toggling course status:', error);
+        showToast('Failed to update course status: ' + error.message, 'danger');
+    }
 }
