@@ -133,7 +133,19 @@ export async function renderCourseContentPage(courseId, state) {
                 </div>
             `;
             document.getElementById('back-to-dashboard').addEventListener('click', () => {
-                import('./student.js').then(module => module.renderStudentDashboard(state));
+                import('./courses.js').then(module => {
+                    module.fetchCourses(state);
+                }).catch(error => {
+                    console.error('Error importing courses module:', error);
+                    document.getElementById('content').innerHTML = `
+                        <div class="container mt-4">
+                            <div class="alert alert-danger">
+                                <h4>Navigation Error</h4>
+                                <p>Unable to return to dashboard. Please try refreshing the page.</p>
+                            </div>
+                        </div>
+                    `;
+                });
             });
             return;
         }
@@ -351,7 +363,19 @@ export async function renderCourseContentPage(courseId, state) {
 
         // Add back button event listener
         document.getElementById('back-to-dashboard').addEventListener('click', () => {
-            import('./student.js').then(module => module.renderStudentDashboard(state));
+            import('./courses.js').then(module => {
+                module.fetchCourses(state);
+            }).catch(error => {
+                console.error('Error importing courses module:', error);
+                document.getElementById('content').innerHTML = `
+                    <div class="container mt-4">
+                        <div class="alert alert-danger">
+                            <h4>Navigation Error</h4>
+                            <p>Unable to return to dashboard. Please try refreshing the page.</p>
+                        </div>
+                    </div>
+                `;
+            });
         });
 
         // Add CSS for the course content page
@@ -405,7 +429,19 @@ export async function renderCourseContentPage(courseId, state) {
             </div>
         `;
         document.getElementById('back-to-dashboard').addEventListener('click', () => {
-            import('./student.js').then(module => module.renderStudentDashboard(state));
+            import('./courses.js').then(module => {
+                module.fetchCourses(state);
+            }).catch(error => {
+                console.error('Error importing courses module:', error);
+                document.getElementById('content').innerHTML = `
+                    <div class="container mt-4">
+                        <div class="alert alert-danger">
+                            <h4>Navigation Error</h4>
+                            <p>Unable to return to dashboard. Please try refreshing the page.</p>
+                        </div>
+                    </div>
+                `;
+            });
         });
     }
 }

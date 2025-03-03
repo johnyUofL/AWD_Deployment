@@ -473,17 +473,127 @@ async function submitAssignment(assignmentId, modal) {
         console.error('Error submitting assignment:', error);
         showToast('Failed to submit assignment: ' + error.message, 'danger');
     }
-}="card-title">Course Information</h5>
-                            <p>${course.description}</p>
-                            <div class="d-flex justify-content-between mt-3">
-                                <span><strong>Instructor:</strong> ${course.teacher.first_name} ${course.teacher.last_name}</span>
-                                <span><strong>Started:</strong> ${new Date(course.start_date).toLocaleDateString()}</span>
-                                <span><strong>Ends:</strong> ${new Date(course.end_date).toLocaleDateString()}</span>
-                            </div>
+}
+
+// Add this function to handle rendering the student dashboard
+export async function renderStudentDashboard(state) {
+    const content = document.getElementById('content');
+    content.innerHTML = `
+        <div class="d-flex justify-content-center my-5">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    `;
+
+    try {
+        // Fetch courses and enrollments
+        const courses = await apiFetch(`http://127.0.0.1:8000/api/core/courses/`, {}, state.token);
+        const enrollments = await apiFetch(`http://127.0.0.1:8000/api/core/enrollments/`, {}, state.token);
+        
+        // Filter enrollments for the current user
+        const userEnrollments = enrollments.filter(e => 
+            e.student_detail.id === parseInt(state.userId) && 
+            e.is_active === true
+        );
+        
+        // Create a map of course IDs to enrollment IDs
+        const enrollmentMap = {};
+        userEnrollments.forEach(enrollment => {
+            enrollmentMap[enrollment.course_detail.id] = enrollment.id;
+        });
+        
+        // Get IDs of enrolled courses
+        const enrolledCourseIds = userEnrollments.map(e => e.course_detail.id);
+        
+        // Filter courses to only show enrolled ones
+        const enrolledCourses = courses.filter(c => enrolledCourseIds.includes(c.id));
+        
+        // Render the dashboard
+        content.innerHTML = `
+            <div class="container mt-4">
+                <h1>My Courses</h1>
+                <div class="row mb-4">
+                    <div class="col">
+                        <div class="alert alert-info">
+                            Welcome back! You are enrolled in ${enrolledCourses.length} course(s).
                         </div>
                     </div>
                 </div>
-                <div class="col-md-4">
-                    <div class="card">
-                        <div class="card-body">
-                            <h5 class
+                
+                <div class="row">
+                    ${enrolledCourses.length > 0 ? 
+                        enrolledCourses.map(course => `
+                            <div class="col-md-4 mb-4">
+                                <div class="card h-100">
+                                    ${course.cover_image_path ? 
+                                        `<img src="${course.cover_image_path}" class="card-img-top" alt="${course.title}" style="height: 180px; object-fit: cover;">` : 
+                                        `<div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 180px;">
+                                            <i class="bi bi-image text-secondary" style="font-size: 3rem;"></i>
+                                        </div>`
+                                    }
+                                    <div class="card-body">
+                                        <h5 class="card-title">${course.title}</h5>
+                                        <p class="card-text text-truncate">${course.description || 'No description available'}</p>
+                                        <p class="card-text"><small class="text-muted">Teacher: ${course.teacher_name || course.teacher.username}</small></p>
+                                    </div>
+                                    <div class="card-footer d-flex justify-content-between">
+                                        <button class="btn btn-primary open-course" data-course-id="${course.id}">Open</button>
+                                        <button class="btn btn-outline-secondary view-progress" data-course-id="${course.id}">View Progress</button>
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('') : 
+                        `<div class="col-12">
+                            <div class="alert alert-warning">
+                                You are not enrolled in any courses yet. Browse available courses to enroll.
+                            </div>
+                        </div>`
+                    }
+                </div>
+                
+                <div class="mt-4">
+                    <h2>Available Courses</h2>
+                    <button class="btn btn-outline-primary" id="browse-courses-btn">Browse All Courses</button>
+                </div>
+            </div>
+        `;
+        
+        // Add event listeners for the Open buttons
+        document.querySelectorAll('.open-course').forEach(button => {
+            button.addEventListener('click', () => {
+                const courseId = button.getAttribute('data-course-id');
+                import('./courseContent.js').then(module => {
+                    module.renderCourseContentPage(courseId, state);
+                });
+            });
+        });
+        
+        // Add event listeners for the View Progress buttons
+        document.querySelectorAll('.view-progress').forEach(button => {
+            button.addEventListener('click', () => {
+                const courseId = button.getAttribute('data-course-id');
+                viewCourseProgress(courseId, state);
+            });
+        });
+        
+        // Add event listener for the Browse All Courses button
+        document.getElementById('browse-courses-btn')?.addEventListener('click', () => {
+            import('./courses.js').then(module => {
+                module.fetchCourses(state);
+            });
+        });
+        
+    } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+        content.innerHTML = `
+            <div class="container mt-4">
+                <div class="alert alert-danger">
+                    <h4>Error Loading Dashboard</h4>
+                    <p>There was a problem loading your dashboard. Please try again later.</p>
+                    <p>Error: ${error.message}</p>
+                </div>
+            </div>
+        `;
+    }
+}
