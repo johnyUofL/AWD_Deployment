@@ -2,7 +2,8 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     CourseViewSet, EnrollmentViewSet, CourseMaterialViewSet, AssignmentViewSet,
-    SubmissionViewSet, GradeViewSet, CourseFeedbackViewSet, AnnouncementViewSet
+    SubmissionViewSet, GradeViewSet, CourseFeedbackViewSet, AnnouncementViewSet,
+    VideoResourceViewSet
 )
 
 app_name = 'core_api'
@@ -16,6 +17,7 @@ router.register(r'submissions', SubmissionViewSet)
 router.register(r'grades', GradeViewSet)
 router.register(r'feedback', CourseFeedbackViewSet)
 router.register(r'announcements', AnnouncementViewSet)
+router.register(r'video-resources', VideoResourceViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),

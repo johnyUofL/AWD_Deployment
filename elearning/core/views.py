@@ -1,7 +1,9 @@
 from rest_framework import viewsets, permissions
-from .models import Course, Enrollment, CourseMaterial, Assignment, Submission, Grade, CourseFeedback, Announcement
-from .serializers import CourseSerializer, EnrollmentSerializer, CourseMaterialSerializer, AssignmentSerializer, SubmissionSerializer, GradeSerializer, CourseFeedbackSerializer, AnnouncementSerializer
+from .models import Course, Enrollment, CourseMaterial, Assignment, Submission, Grade, CourseFeedback, Announcement, VideoResource
+from .serializers import CourseSerializer, EnrollmentSerializer, CourseMaterialSerializer, AssignmentSerializer, SubmissionSerializer, GradeSerializer, CourseFeedbackSerializer, AnnouncementSerializer, VideoResourceSerializer
 from .tasks import notify_teacher_enrollment
+import os
+from django.conf import settings
 
 # REST API Viewsets
 class CourseViewSet(viewsets.ModelViewSet):
@@ -29,6 +31,26 @@ class EnrollmentViewSet(viewsets.ModelViewSet):
 class CourseMaterialViewSet(viewsets.ModelViewSet):
     queryset = CourseMaterial.objects.all()
     serializer_class = CourseMaterialSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = CourseMaterial.objects.all()
+        course_id = self.request.query_params.get('course', None)
+        if course_id is not None:
+            queryset = queryset.filter(course_id=course_id)
+        return queryset
+    
+    def perform_destroy(self, instance):
+        # Delete the file from storage if it exists
+        if instance.file_path and os.path.exists(os.path.join(settings.MEDIA_ROOT, str(instance.file_path))):
+            try:
+                os.remove(os.path.join(settings.MEDIA_ROOT, str(instance.file_path)))
+                print(f"Deleted file: {instance.file_path}")
+            except Exception as e:
+                print(f"Error deleting file: {e}")
+        
+        # Delete the instance
+        instance.delete()
 
 class AssignmentViewSet(viewsets.ModelViewSet):
     queryset = Assignment.objects.all()
@@ -49,3 +71,27 @@ class CourseFeedbackViewSet(viewsets.ModelViewSet):
 class AnnouncementViewSet(viewsets.ModelViewSet):
     queryset = Announcement.objects.all()
     serializer_class = AnnouncementSerializer
+
+class VideoResourceViewSet(viewsets.ModelViewSet):
+    queryset = VideoResource.objects.all()
+    serializer_class = VideoResourceSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = VideoResource.objects.all()
+        material_id = self.request.query_params.get('material', None)
+        if material_id is not None:
+            queryset = queryset.filter(material_id=material_id)
+        return queryset
+    
+    def perform_destroy(self, instance):
+        # Delete the thumbnail file if it exists
+        if instance.thumbnail_path and os.path.exists(os.path.join(settings.MEDIA_ROOT, str(instance.thumbnail_path))):
+            try:
+                os.remove(os.path.join(settings.MEDIA_ROOT, str(instance.thumbnail_path)))
+                print(f"Deleted thumbnail: {instance.thumbnail_path}")
+            except Exception as e:
+                print(f"Error deleting thumbnail: {e}")
+        
+        # Delete the instance
+        instance.delete()

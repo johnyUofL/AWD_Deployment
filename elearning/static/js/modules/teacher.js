@@ -118,6 +118,7 @@ export function renderTeacherCourses(courses, state) {
                                         <li><a class="dropdown-item edit-course" href="#" data-course-id="${course.id}">Edit Course</a></li>
                                         <li><a class="dropdown-item view-students" href="#" data-course-id="${course.id}">View Students</a></li>
                                         <li><a class="dropdown-item manage-assignments" href="#" data-course-id="${course.id}">Manage Assignments</a></li>
+                                        <li><a class="dropdown-item manage-content" href="#" data-course-id="${course.id}">Manage Content</a></li>
                                         <li><hr class="dropdown-divider"></li>
                                         <li><a class="dropdown-item toggle-status" href="#" data-course-id="${course.id}" data-status="${course.is_active}">
                                             ${course.is_active ? 'Deactivate' : 'Activate'} Course
@@ -161,6 +162,13 @@ export function renderTeacherCourses(courses, state) {
         btn.addEventListener('click', (e) => {
             e.preventDefault();
             manageCourseAssignments(btn.getAttribute('data-course-id'), state);
+        });
+    });
+    
+    document.querySelectorAll('.manage-content').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            manageCourseContent(btn.getAttribute('data-course-id'), state);
         });
     });
     
@@ -594,7 +602,7 @@ export function renderCourseDetailView(course, videoMaterials, documentMaterials
     
     document.querySelectorAll('.edit-material-btn').forEach(btn => {
         btn.addEventListener('click', () => {
-            editMaterial(btn.getAttribute('data-id'), state);
+            editMaterial(btn.getAttribute('data-id'), course.id, state);
         });
     });
     
@@ -629,47 +637,45 @@ export function renderCourseDetailView(course, videoMaterials, documentMaterials
 }
 
 export function showAddVideoModal(courseId, state) {
+    // Create modal HTML
     const modalHtml = `
         <div class="modal fade" id="addVideoModal" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-lg">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h5 class="modal-title">Add Video</h5>
+                        <h5 class="modal-title">Add New Video</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
                         <form id="add-video-form">
                             <div class="mb-3">
-                                <label for="video-title" class="form-label">Title</label>
+                                <label for="video-title" class="form-label">Video Title</label>
                                 <input type="text" class="form-control" id="video-title" required>
                             </div>
                             <div class="mb-3">
                                 <label for="video-description" class="form-label">Description</label>
-                                <textarea class="form-control" id="video-description" rows="3" required></textarea>
+                                <textarea class="form-control" id="video-description" rows="3"></textarea>
                             </div>
                             <div class="mb-3">
                                 <label for="video-file" class="form-label">Video File</label>
                                 <input type="file" class="form-control" id="video-file" accept="video/*" required>
-                                <small class="form-text text-muted">Supported formats: MP4, WebM, Ogg</small>
                             </div>
                             <div class="mb-3">
                                 <label for="video-thumbnail" class="form-label">Thumbnail (Optional)</label>
                                 <input type="file" class="form-control" id="video-thumbnail" accept="image/*">
                             </div>
-                            <div class="row mb-3">
-                                <div class="col">
-                                    <label for="video-duration" class="form-label">Duration (seconds)</label>
-                                    <input type="number" class="form-control" id="video-duration" min="1" required>
-                                </div>
-                                <div class="col">
-                                    <label for="video-resolution" class="form-label">Resolution (Optional)</label>
-                                    <input type="text" class="form-control" id="video-resolution" placeholder="e.g. 1920x1080">
-                                </div>
+                            <div class="mb-3">
+                                <label for="video-duration" class="form-label">Duration (seconds)</label>
+                                <input type="number" class="form-control" id="video-duration" min="1" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="video-resolution" class="form-label">Resolution (Optional)</label>
+                                <input type="text" class="form-control" id="video-resolution" placeholder="e.g., 1920x1080">
                             </div>
                             <div class="form-check mb-3">
                                 <input class="form-check-input" type="checkbox" id="video-is-visible" checked>
                                 <label class="form-check-label" for="video-is-visible">
-                                    Make video visible to students
+                                    Visible to students
                                 </label>
                             </div>
                         </form>
@@ -683,16 +689,21 @@ export function showAddVideoModal(courseId, state) {
         </div>
     `;
     
+    // Add modal to the DOM
     document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Initialize the modal
     const modal = new bootstrap.Modal(document.getElementById('addVideoModal'));
     modal.show();
     
-    document.getElementById('save-video-btn').addEventListener('click', () => {
-        uploadVideo(courseId, modal, state);
+    // Add event listener for the save button
+    document.getElementById('save-video-btn').addEventListener('click', async () => {
+        await uploadVideo(courseId, modal, state);
     });
     
-    document.getElementById('addVideoModal').addEventListener('hidden.bs.modal', function() {
-        this.remove();
+    // Clean up the modal when it's closed
+    document.getElementById('addVideoModal').addEventListener('hidden.bs.modal', () => {
+        document.getElementById('addVideoModal').remove();
     });
 }
 
@@ -1211,5 +1222,760 @@ export async function toggleCourseStatus(courseId, currentStatus, state) {
     } catch (error) {
         console.error('Error toggling course status:', error);
         showToast('Failed to update course status: ' + error.message, 'danger');
+    }
+}
+
+// Edit a video material
+export async function editVideoMaterial(materialId, courseId, state) {
+    try {
+        // Fetch the material details
+        const material = await apiFetch(`http://127.0.0.1:8000/api/core/materials/${materialId}/`, {}, state.token);
+        
+        // Try to fetch video details, but don't fail if they don't exist
+        let videoDetails = null;
+        try {
+            const videoResources = await apiFetch(`http://127.0.0.1:8000/api/core/video-resources/?material=${materialId}`, {}, state.token);
+            if (videoResources.length > 0) {
+                videoDetails = videoResources[0];
+            }
+        } catch (error) {
+            console.log('No video details found, will create new ones if needed');
+        }
+        
+        // Create modal HTML
+        const modalHtml = `
+            <div class="modal fade" id="editVideoModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Edit Video</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="edit-video-form">
+                                <div class="mb-3">
+                                    <label for="edit-video-title" class="form-label">Video Title</label>
+                                    <input type="text" class="form-control" id="edit-video-title" value="${material.title}" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="edit-video-description" class="form-label">Description</label>
+                                    <textarea class="form-control" id="edit-video-description" rows="3">${material.description}</textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="edit-video-file" class="form-label">Video File (Leave empty to keep current)</label>
+                                    <input type="file" class="form-control" id="edit-video-file" accept="video/*">
+                                    <small class="text-muted">Current file: ${material.file_path.split('/').pop()}</small>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="edit-video-thumbnail" class="form-label">Thumbnail (Leave empty to keep current)</label>
+                                    <input type="file" class="form-control" id="edit-video-thumbnail" accept="image/*">
+                                    ${videoDetails && videoDetails.thumbnail_path ? 
+                                        `<small class="text-muted">Current thumbnail: ${videoDetails.thumbnail_path.split('/').pop()}</small>` : 
+                                        '<small class="text-muted">No current thumbnail</small>'
+                                    }
+                                </div>
+                                <div class="mb-3">
+                                    <label for="edit-video-duration" class="form-label">Duration (seconds)</label>
+                                    <input type="number" class="form-control" id="edit-video-duration" min="1" value="${videoDetails ? videoDetails.duration : ''}" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="edit-video-resolution" class="form-label">Resolution (Optional)</label>
+                                    <input type="text" class="form-control" id="edit-video-resolution" value="${videoDetails && videoDetails.resolution ? videoDetails.resolution : ''}" placeholder="e.g., 1920x1080">
+                                </div>
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="edit-video-is-visible" ${material.is_visible ? 'checked' : ''}>
+                                    <label class="form-check-label" for="edit-video-is-visible">
+                                        Visible to students
+                                    </label>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-primary" id="update-video-btn">Update Video</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add modal to the DOM
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // Initialize the modal
+        const modal = new bootstrap.Modal(document.getElementById('editVideoModal'));
+        modal.show();
+        
+        // Add event listener for the update button
+        document.getElementById('update-video-btn').addEventListener('click', async () => {
+            const title = document.getElementById('edit-video-title').value;
+            const description = document.getElementById('edit-video-description').value;
+            const videoFile = document.getElementById('edit-video-file').files[0];
+            const thumbnailFile = document.getElementById('edit-video-thumbnail').files[0];
+            const duration = document.getElementById('edit-video-duration').value;
+            const resolution = document.getElementById('edit-video-resolution').value;
+            const isVisible = document.getElementById('edit-video-is-visible').checked;
+            
+            if (!title || !description || !duration) {
+                showToast('Please fill in all required fields', 'warning');
+                return;
+            }
+            
+            try {
+                // Update the course material
+                const materialFormData = new FormData();
+                materialFormData.append('title', title);
+                materialFormData.append('description', description);
+                materialFormData.append('course', courseId);
+                materialFormData.append('is_visible', isVisible);
+                
+                if (videoFile) {
+                    materialFormData.append('file_path', videoFile);
+                }
+                
+                await apiFetch(`http://127.0.0.1:8000/api/core/materials/${materialId}/`, {
+                    method: 'PATCH',
+                    body: materialFormData,
+                    headers: {}
+                }, state.token);
+                
+                // Update or create the video resource
+                const videoFormData = new FormData();
+                videoFormData.append('duration', duration);
+                
+                if (thumbnailFile) {
+                    videoFormData.append('thumbnail_path', thumbnailFile);
+                }
+                
+                if (resolution) {
+                    videoFormData.append('resolution', resolution);
+                }
+                
+                if (videoDetails) {
+                    // Update existing video resource
+                    console.log('Updating video resource:', videoDetails.id);
+                    await apiFetch(`http://127.0.0.1:8000/api/core/video-resources/${videoDetails.id}/`, {
+                        method: 'PATCH',
+                        body: videoFormData,
+                        headers: {}
+                    }, state.token);
+                } else {
+                    // Create new video resource
+                    console.log('Creating new video resource for material:', materialId);
+                    videoFormData.append('material', materialId);
+                    try {
+                        await apiFetch('http://127.0.0.1:8000/api/core/video-resources/', {
+                            method: 'POST',
+                            body: videoFormData,
+                            headers: {}
+                        }, state.token);
+                    } catch (error) {
+                        console.error('Error creating video resource:', error);
+                        console.log('Request data:', Object.fromEntries(videoFormData.entries()));
+                        throw error;
+                    }
+                }
+                
+                modal.hide();
+                showToast('Video updated successfully!', 'success');
+                manageCourseContent(courseId, state);
+            } catch (error) {
+                console.error('Error updating video:', error);
+                showToast('Failed to update video: ' + error.message, 'danger');
+            }
+        });
+        
+        // Clean up the modal when it's closed
+        document.getElementById('editVideoModal').addEventListener('hidden.bs.modal', () => {
+            document.getElementById('editVideoModal').remove();
+        });
+        
+    } catch (error) {
+        console.error('Error editing video:', error);
+        showToast('Failed to edit video: ' + error.message, 'danger');
+    }
+}
+
+// Edit a general material (document, image, audio, other)
+async function editMaterial(materialId, courseId, state) {
+    try {
+        // Fetch the material details
+        const material = await apiFetch(`http://127.0.0.1:8000/api/core/materials/${materialId}/`, {}, state.token);
+        
+        // Get the material type label
+        const materialTypeLabels = {
+            'document': 'Document',
+            'image': 'Image',
+            'audio': 'Audio',
+            'other': 'Material'
+        };
+        
+        const typeLabel = materialTypeLabels[material.file_type] || 'Material';
+        
+        // Create modal HTML
+        const modalHtml = `
+            <div class="modal fade" id="editMaterialModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Edit ${typeLabel}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <form id="edit-material-form">
+                                <div class="mb-3">
+                                    <label for="edit-material-title" class="form-label">${typeLabel} Title</label>
+                                    <input type="text" class="form-control" id="edit-material-title" value="${material.title}" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="edit-material-description" class="form-label">Description</label>
+                                    <textarea class="form-control" id="edit-material-description" rows="3">${material.description}</textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="edit-material-file" class="form-label">${typeLabel} File (Leave empty to keep current)</label>
+                                    <input type="file" class="form-control" id="edit-material-file" ${material.file_type === 'image' ? 'accept="image/*"' : ''}>
+                                    <small class="text-muted">Current file: ${material.file_path.split('/').pop()}</small>
+                                </div>
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" id="edit-material-is-visible" ${material.is_visible ? 'checked' : ''}>
+                                    <label class="form-check-label" for="edit-material-is-visible">
+                                        Visible to students
+                                    </label>
+                                </div>
+                            </form>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn btn-primary" id="update-material-btn">Update ${typeLabel}</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add modal to the DOM
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // Initialize the modal
+        const modal = new bootstrap.Modal(document.getElementById('editMaterialModal'));
+        modal.show();
+        
+        // Add event listener for the update button
+        document.getElementById('update-material-btn').addEventListener('click', async () => {
+            const title = document.getElementById('edit-material-title').value;
+            const description = document.getElementById('edit-material-description').value;
+            const file = document.getElementById('edit-material-file').files[0];
+            const isVisible = document.getElementById('edit-material-is-visible').checked;
+            
+            if (!title || !description) {
+                showToast('Please fill in all required fields', 'warning');
+                return;
+            }
+            
+            try {
+                // Update the course material
+                const materialFormData = new FormData();
+                materialFormData.append('title', title);
+                materialFormData.append('description', description);
+                materialFormData.append('course', courseId);
+                materialFormData.append('is_visible', isVisible);
+                
+                if (file) {
+                    materialFormData.append('file_path', file);
+                }
+                
+                await apiFetch(`http://127.0.0.1:8000/api/core/materials/${materialId}/`, {
+                    method: 'PATCH',
+                    body: materialFormData,
+                    headers: {}
+                }, state.token);
+                
+                modal.hide();
+                showToast(`${typeLabel} updated successfully!`, 'success');
+                manageCourseContent(courseId, state);
+            } catch (error) {
+                console.error(`Error updating ${typeLabel.toLowerCase()}:`, error);
+                showToast(`Failed to update ${typeLabel.toLowerCase()}: ` + error.message, 'danger');
+            }
+        });
+        
+        // Clean up the modal when it's closed
+        document.getElementById('editMaterialModal').addEventListener('hidden.bs.modal', () => {
+            document.getElementById('editMaterialModal').remove();
+        });
+        
+    } catch (error) {
+        console.error('Error editing material:', error);
+        showToast('Failed to edit material: ' + error.message, 'danger');
+    }
+}
+
+// Delete a material
+async function deleteMaterial(materialId, courseId, state) {
+    try {
+        // Fetch the material details to get its type
+        const material = await apiFetch(`http://127.0.0.1:8000/api/core/materials/${materialId}/`, {}, state.token);
+        
+        // Get the material type label
+        const materialTypeLabels = {
+            'video': 'Video',
+            'document': 'Document',
+            'image': 'Image',
+            'audio': 'Audio',
+            'other': 'Material'
+        };
+        
+        const typeLabel = materialTypeLabels[material.file_type] || 'Material';
+        
+        // Show confirmation dialog
+        if (!confirm(`Are you sure you want to delete this ${typeLabel.toLowerCase()}? This action cannot be undone.`)) {
+            return;
+        }
+        
+        // If it's a video, we need to delete the video resource first
+        if (material.file_type === 'video') {
+            try {
+                const videoResources = await apiFetch(`http://127.0.0.1:8000/api/core/video-resources/?material=${materialId}`, {}, state.token);
+                if (videoResources.length > 0) {
+                    await apiFetch(`http://127.0.0.1:8000/api/core/video-resources/${videoResources[0].id}/`, {
+                        method: 'DELETE'
+                    }, state.token);
+                }
+            } catch (error) {
+                console.error('Error deleting video resource:', error);
+            }
+        }
+        
+        // Delete the material
+        await apiFetch(`http://127.0.0.1:8000/api/core/materials/${materialId}/`, {
+            method: 'DELETE'
+        }, state.token);
+        
+        showToast(`${typeLabel} deleted successfully!`, 'success');
+        manageCourseContent(courseId, state);
+    } catch (error) {
+        console.error('Error deleting material:', error);
+        showToast('Failed to delete material: ' + error.message, 'danger');
+    }
+}
+
+// Course Content Management
+export async function manageCourseContent(courseId, state) {
+    try {
+        // Fetch course details
+        const course = await apiFetch(`http://127.0.0.1:8000/api/core/courses/${courseId}/`, {}, state.token);
+        
+        // Fetch course materials
+        const materials = await apiFetch(`http://127.0.0.1:8000/api/core/materials/?course=${courseId}`, {}, state.token);
+        
+        // Separate materials by type
+        const videoMaterials = materials.filter(material => material.file_type === 'video');
+        const documentMaterials = materials.filter(material => material.file_type === 'document');
+        const imageMaterials = materials.filter(material => material.file_type === 'image');
+        const audioMaterials = materials.filter(material => material.file_type === 'audio');
+        const otherMaterials = materials.filter(material => 
+            !['video', 'document', 'image', 'audio'].includes(material.file_type));
+        
+        // Render the content management view
+        renderCourseContentManager(course, {
+            videoMaterials,
+            documentMaterials,
+            imageMaterials,
+            audioMaterials,
+            otherMaterials
+        }, state);
+        
+    } catch (error) {
+        console.error('Error loading course content:', error);
+        showToast('Failed to load course content: ' + error.message, 'danger');
+    }
+}
+
+export function renderCourseContentManager(course, materials, state) {
+    const content = document.getElementById('content');
+    content.innerHTML = `
+        <div class="container-fluid mt-4">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1>Course Content: ${course.title}</h1>
+                <button class="btn btn-secondary" id="back-to-dashboard">Back to Dashboard</button>
+            </div>
+            
+            <div class="row">
+                <!-- Main content area -->
+                <div class="col-md-12">
+                    <ul class="nav nav-tabs mb-4" id="contentTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="videos-tab" data-bs-toggle="tab" data-bs-target="#videos" type="button" role="tab">
+                                Videos
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="documents-tab" data-bs-toggle="tab" data-bs-target="#documents" type="button" role="tab">
+                                Documents
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="images-tab" data-bs-toggle="tab" data-bs-target="#images" type="button" role="tab">
+                                Images
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="audio-tab" data-bs-toggle="tab" data-bs-target="#audio" type="button" role="tab">
+                                Audio
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="other-tab" data-bs-toggle="tab" data-bs-target="#other" type="button" role="tab">
+                                Other
+                            </button>
+                        </li>
+                    </ul>
+                    
+                    <div class="tab-content" id="contentTabsContent">
+                        <!-- Videos Tab -->
+                        <div class="tab-pane fade show active" id="videos" role="tabpanel">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h3>Video Content</h3>
+                                <button class="btn btn-primary" id="add-video-btn">
+                                    <i class="bi bi-plus-circle"></i> Add Video
+                                </button>
+                            </div>
+                            
+                            <div class="row" id="video-materials-container">
+                                ${materials.videoMaterials.length > 0 ? 
+                                    materials.videoMaterials.map(video => `
+                                        <div class="col-md-4 mb-4">
+                                            <div class="card h-100">
+                                                <div class="card-img-top bg-dark d-flex justify-content-center align-items-center" style="height: 160px;">
+                                                    ${video.video_details && video.video_details.thumbnail_path ? 
+                                                        `<img src="${video.video_details.thumbnail_path}" class="img-fluid" style="max-height: 160px;" alt="${video.title}">` :
+                                                        `<i class="bi bi-film text-light" style="font-size: 3rem;"></i>`
+                                                    }
+                                                </div>
+                                                <div class="card-body">
+                                                    <h5 class="card-title">${video.title}</h5>
+                                                    <p class="card-text small text-truncate">${video.description}</p>
+                                                    ${video.video_details ? 
+                                                        `<p class="card-text small">
+                                                            <i class="bi bi-clock"></i> ${formatDuration(video.video_details.duration)}
+                                                            ${video.video_details.resolution ? ` | <i class="bi bi-display"></i> ${video.video_details.resolution}` : ''}
+                                                        </p>` : ''
+                                                    }
+                                                </div>
+                                                <div class="card-footer d-flex justify-content-between">
+                                                    <button class="btn btn-sm btn-outline-primary preview-video-btn" data-id="${video.id}">
+                                                        <i class="bi bi-play-fill"></i> Preview
+                                                    </button>
+                                                    <div class="btn-group">
+                                                        <button class="btn btn-sm btn-outline-secondary edit-video-btn" data-id="${video.id}">
+                                                            <i class="bi bi-pencil"></i>
+                                                        </button>
+                                                        <button class="btn btn-sm btn-outline-danger delete-video-btn" data-id="${video.id}">
+                                                            <i class="bi bi-trash"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `).join('') : 
+                                    `<div class="col-12">
+                                        <div class="alert alert-info">
+                                            No videos have been added to this course yet. Click the "Add Video" button to get started.
+                                        </div>
+                                    </div>`
+                                }
+                            </div>
+                        </div>
+                        
+                        <!-- Documents Tab -->
+                        <div class="tab-pane fade" id="documents" role="tabpanel">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h3>Document Content</h3>
+                                <button class="btn btn-primary" id="add-document-btn">
+                                    <i class="bi bi-plus-circle"></i> Add Document
+                                </button>
+                            </div>
+                            
+                            <div class="row" id="document-materials-container">
+                                ${materials.documentMaterials.length > 0 ? 
+                                    materials.documentMaterials.map(doc => `
+                                        <div class="col-md-4 mb-4">
+                                            <div class="card h-100">
+                                                <div class="card-img-top bg-light d-flex justify-content-center align-items-center" style="height: 160px;">
+                                                    <i class="bi bi-file-earmark-text" style="font-size: 3rem;"></i>
+                                                </div>
+                                                <div class="card-body">
+                                                    <h5 class="card-title">${doc.title}</h5>
+                                                    <p class="card-text small text-truncate">${doc.description}</p>
+                                                </div>
+                                                <div class="card-footer d-flex justify-content-between">
+                                                    <a href="${doc.file_path}" class="btn btn-sm btn-outline-primary" target="_blank">
+                                                        <i class="bi bi-eye"></i> View
+                                                    </a>
+                                                    <div class="btn-group">
+                                                        <button class="btn btn-sm btn-outline-secondary edit-document-btn" data-id="${doc.id}">
+                                                            <i class="bi bi-pencil"></i>
+                                                        </button>
+                                                        <button class="btn btn-sm btn-outline-danger delete-document-btn" data-id="${doc.id}">
+                                                            <i class="bi bi-trash"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `).join('') : 
+                                    `<div class="col-12">
+                                        <div class="alert alert-info">
+                                            No document materials have been added to this course yet. Click the "Add Document" button to get started.
+                                        </div>
+                                    </div>`
+                                }
+                            </div>
+                        </div>
+                        
+                        <!-- Images Tab -->
+                        <div class="tab-pane fade" id="images" role="tabpanel">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h3>Image Content</h3>
+                                <button class="btn btn-primary" id="add-image-btn">
+                                    <i class="bi bi-plus-circle"></i> Add Image
+                                </button>
+                            </div>
+                            
+                            <div class="row" id="image-materials-container">
+                                ${materials.imageMaterials.length > 0 ? 
+                                    materials.imageMaterials.map(img => `
+                                        <div class="col-md-4 mb-4">
+                                            <div class="card h-100">
+                                                <div class="card-img-top bg-light d-flex justify-content-center align-items-center" style="height: 160px;">
+                                                    <img src="${img.file_path}" class="img-fluid" style="max-height: 160px; object-fit: cover;" alt="${img.title}">
+                                                </div>
+                                                <div class="card-body">
+                                                    <h5 class="card-title">${img.title}</h5>
+                                                    <p class="card-text small text-truncate">${img.description}</p>
+                                                </div>
+                                                <div class="card-footer d-flex justify-content-between">
+                                                    <a href="${img.file_path}" class="btn btn-sm btn-outline-primary" target="_blank">
+                                                        <i class="bi bi-eye"></i> View
+                                                    </a>
+                                                    <div class="btn-group">
+                                                        <button class="btn btn-sm btn-outline-secondary edit-image-btn" data-id="${img.id}">
+                                                            <i class="bi bi-pencil"></i>
+                                                        </button>
+                                                        <button class="btn btn-sm btn-outline-danger delete-image-btn" data-id="${img.id}">
+                                                            <i class="bi bi-trash"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `).join('') : 
+                                    `<div class="col-12">
+                                        <div class="alert alert-info">
+                                            No image materials have been added to this course yet. Click the "Add Image" button to get started.
+                                        </div>
+                                    </div>`
+                                }
+                            </div>
+                        </div>
+                        
+                        <!-- Audio Tab -->
+                        <div class="tab-pane fade" id="audio" role="tabpanel">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h3>Audio Content</h3>
+                                <button class="btn btn-primary" id="add-audio-btn">
+                                    <i class="bi bi-plus-circle"></i> Add Audio
+                                </button>
+                            </div>
+                            
+                            <div class="row" id="audio-materials-container">
+                                ${materials.audioMaterials.length > 0 ? 
+                                    materials.audioMaterials.map(audio => `
+                                        <div class="col-md-4 mb-4">
+                                            <div class="card h-100">
+                                                <div class="card-img-top bg-light d-flex justify-content-center align-items-center" style="height: 160px;">
+                                                    <i class="bi bi-music-note-beamed" style="font-size: 3rem;"></i>
+                                                </div>
+                                                <div class="card-body">
+                                                    <h5 class="card-title">${audio.title}</h5>
+                                                    <p class="card-text small text-truncate">${audio.description}</p>
+                                                    <audio controls class="w-100 mt-2">
+                                                        <source src="${audio.file_path}" type="audio/mpeg">
+                                                        Your browser does not support the audio element.
+                                                    </audio>
+                                                </div>
+                                                <div class="card-footer d-flex justify-content-between">
+                                                    <a href="${audio.file_path}" class="btn btn-sm btn-outline-primary" download>
+                                                        <i class="bi bi-download"></i> Download
+                                                    </a>
+                                                    <div class="btn-group">
+                                                        <button class="btn btn-sm btn-outline-secondary edit-audio-btn" data-id="${audio.id}">
+                                                            <i class="bi bi-pencil"></i>
+                                                        </button>
+                                                        <button class="btn btn-sm btn-outline-danger delete-audio-btn" data-id="${audio.id}">
+                                                            <i class="bi bi-trash"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `).join('') : 
+                                    `<div class="col-12">
+                                        <div class="alert alert-info">
+                                            No audio materials have been added to this course yet. Click the "Add Audio" button to get started.
+                                        </div>
+                                    </div>`
+                                }
+                            </div>
+                        </div>
+                        
+                        <!-- Other Tab -->
+                        <div class="tab-pane fade" id="other" role="tabpanel">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h3>Other Content</h3>
+                                <button class="btn btn-primary" id="add-other-btn">
+                                    <i class="bi bi-plus-circle"></i> Add Other Material
+                                </button>
+                            </div>
+                            
+                            <div class="row" id="other-materials-container">
+                                ${materials.otherMaterials.length > 0 ? 
+                                    materials.otherMaterials.map(other => `
+                                        <div class="col-md-4 mb-4">
+                                            <div class="card h-100">
+                                                <div class="card-img-top bg-light d-flex justify-content-center align-items-center" style="height: 160px;">
+                                                    <i class="bi bi-file-earmark" style="font-size: 3rem;"></i>
+                                                </div>
+                                                <div class="card-body">
+                                                    <h5 class="card-title">${other.title}</h5>
+                                                    <p class="card-text small text-truncate">${other.description}</p>
+                                                </div>
+                                                <div class="card-footer d-flex justify-content-between">
+                                                    <a href="${other.file_path}" class="btn btn-sm btn-outline-primary" download>
+                                                        <i class="bi bi-download"></i> Download
+                                                    </a>
+                                                    <div class="btn-group">
+                                                        <button class="btn btn-sm btn-outline-secondary edit-other-btn" data-id="${other.id}">
+                                                            <i class="bi bi-pencil"></i>
+                                                        </button>
+                                                        <button class="btn btn-sm btn-outline-danger delete-other-btn" data-id="${other.id}">
+                                                            <i class="bi bi-trash"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `).join('') : 
+                                    `<div class="col-12">
+                                        <div class="alert alert-info">
+                                            No other materials have been added to this course yet. Click the "Add Other Material" button to get started.
+                                        </div>
+                                    </div>`
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add event listeners
+    document.getElementById('back-to-dashboard').addEventListener('click', () => {
+        renderTeacherDashboard(state);
+    });
+    
+    // Add content buttons
+    document.getElementById('add-video-btn').addEventListener('click', () => {
+        showAddVideoModal(course.id, state);
+    });
+    
+    document.getElementById('add-document-btn').addEventListener('click', () => {
+        showAddDocumentModal(course.id, state);
+    });
+    
+    document.getElementById('add-image-btn').addEventListener('click', () => {
+        showAddImageModal(course.id, state);
+    });
+    
+    document.getElementById('add-audio-btn').addEventListener('click', () => {
+        showAddAudioModal(course.id, state);
+    });
+    
+    document.getElementById('add-other-btn').addEventListener('click', () => {
+        showAddOtherMaterialModal(course.id, state);
+    });
+    
+    // Preview video buttons
+    document.querySelectorAll('.preview-video-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const materialId = btn.getAttribute('data-id');
+            previewVideo(materialId, state);
+        });
+    });
+    
+    // Edit buttons
+    document.querySelectorAll('.edit-video-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const materialId = btn.getAttribute('data-id');
+            editVideoMaterial(materialId, course.id, state);
+        });
+    });
+    
+    document.querySelectorAll('.edit-document-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const materialId = btn.getAttribute('data-id');
+            editMaterial(materialId, course.id, state);
+        });
+    });
+    
+    // Delete buttons
+    document.querySelectorAll('.delete-video-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            deleteVideo(btn.getAttribute('data-id'), course.id, state);
+        });
+    });
+}
+
+async function deleteVideo(materialId, courseId, state) {
+    try {
+        // Fetch the material details
+        const material = await apiFetch(`http://127.0.0.1:8000/api/core/materials/${materialId}/`, {}, state.token);
+        
+        // Show confirmation dialog
+        if (!confirm(`Are you sure you want to delete this video? This action cannot be undone.`)) {
+            return;
+        }
+        
+        // If it's a video, we need to delete the video resource first
+        if (material.video_details) {
+            try {
+                console.log('Deleting video resource:', material.video_details.id);
+                await apiFetch(`http://127.0.0.1:8000/api/core/video-resources/${material.video_details.id}/`, {
+                    method: 'DELETE'
+                }, state.token);
+                console.log('Video resource deleted successfully');
+            } catch (error) {
+                console.error('Error deleting video resource:', error);
+                // Continue with material deletion even if video resource deletion fails
+            }
+        }
+        
+        // Delete the material
+        console.log('Deleting material:', materialId);
+        await apiFetch(`http://127.0.0.1:8000/api/core/materials/${materialId}/`, {
+            method: 'DELETE'
+        }, state.token);
+        
+        showToast('Video deleted successfully!', 'success');
+        
+        // Refresh the course content view
+        await manageCourseContent(courseId, state);
+    } catch (error) {
+        console.error('Error deleting video:', error);
+        showToast('Failed to delete video: ' + error.message, 'danger');
     }
 }

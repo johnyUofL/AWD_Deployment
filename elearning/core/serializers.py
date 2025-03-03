@@ -25,16 +25,18 @@ class EnrollmentSerializer(serializers.ModelSerializer):
         model = Enrollment
         fields = ['id', 'student', 'course', 'student_detail', 'course_detail', 'enrollment_date', 'is_active']
 
-class CourseMaterialSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = CourseMaterial
-        fields = ['id', 'course', 'title', 'description', 'file_path', 'file_type', 'upload_date', 'is_visible']
-
 class VideoResourceSerializer(serializers.ModelSerializer):
-    material = CourseMaterialSerializer(read_only=True)
     class Meta:
         model = VideoResource
         fields = ['id', 'material', 'duration', 'thumbnail_path', 'resolution', 'streaming_url']
+
+class CourseMaterialSerializer(serializers.ModelSerializer):
+    video_details = VideoResourceSerializer(read_only=True)
+    
+    class Meta:
+        model = CourseMaterial
+        fields = ['id', 'course', 'title', 'description', 'file_path', 
+                  'file_type', 'upload_date', 'is_visible', 'video_details']
 
 class AssignmentSerializer(serializers.ModelSerializer):
     class Meta:
