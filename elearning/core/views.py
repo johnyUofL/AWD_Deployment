@@ -1,9 +1,11 @@
 from rest_framework import viewsets, permissions
-from .models import Course, Enrollment, CourseMaterial, Assignment, Submission, Grade, CourseFeedback, Announcement, VideoResource
-from .serializers import CourseSerializer, EnrollmentSerializer, CourseMaterialSerializer, AssignmentSerializer, SubmissionSerializer, GradeSerializer, CourseFeedbackSerializer, AnnouncementSerializer, VideoResourceSerializer
+from .models import Course, Enrollment, CourseMaterial, Assignment, Submission, Grade, CourseFeedback, Announcement, VideoResource, CourseStructure
+from .serializers import CourseSerializer, EnrollmentSerializer, CourseMaterialSerializer, AssignmentSerializer, SubmissionSerializer, GradeSerializer, CourseFeedbackSerializer, AnnouncementSerializer, VideoResourceSerializer, CourseStructureSerializer
 from .tasks import notify_teacher_enrollment
 import os
 from django.conf import settings
+from rest_framework.decorators import action
+from rest_framework.response import Response
 
 # REST API Viewsets
 class CourseViewSet(viewsets.ModelViewSet):
@@ -95,3 +97,33 @@ class VideoResourceViewSet(viewsets.ModelViewSet):
         
         # Delete the instance
         instance.delete()
+
+class CourseStructureViewSet(viewsets.ModelViewSet):
+    queryset = CourseStructure.objects.all()
+    serializer_class = CourseStructureSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        user = self.request.user
+        if user.user_type == 'teacher':
+            # Teachers can only access structures for their courses
+            return CourseStructure.objects.filter(course__teacher=user)
+        return CourseStructure.objects.none()
+    
+    @action(detail=False, methods=['post'])
+    def save_structure(self, request):
+        course_id = request.data.get('course_id')
+        sections = request.data.get('sections', [])
+        
+        try:
+            course = Course.objects.get(id=course_id, teacher=request.user)
+        except Course.DoesNotExist:
+            return Response({'error': 'Course not found or you do not have permission'}, status=404)
+        
+        # Save the structure
+        structure, created = CourseStructure.objects.update_or_create(
+            course=course,
+            defaults={'structure_data': sections}
+        )
+        
+        return Response({'status': 'success', 'message': 'Course structure saved'})

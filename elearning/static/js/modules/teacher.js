@@ -123,6 +123,7 @@ export function renderTeacherCourses(courses, state) {
                                         <li><a class="dropdown-item toggle-status" href="#" data-course-id="${course.id}" data-status="${course.is_active}">
                                             ${course.is_active ? 'Deactivate' : 'Activate'} Course
                                         </a></li>
+                                        <li><a class="dropdown-item organize-content" href="#" data-course-id="${course.id}">Organize Content</a></li>
                                     </ul>
                                 </div>
                             </div>
@@ -180,6 +181,13 @@ export function renderTeacherCourses(courses, state) {
                 btn.getAttribute('data-status') === 'true',
                 state
             );
+        });
+    });
+    
+    document.querySelectorAll('.organize-content').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
+            organizeContentView(btn.getAttribute('data-course-id'), state);
         });
     });
 }
@@ -2482,5 +2490,514 @@ export async function uploadOtherMaterial(courseId, modal, state) {
     } catch (error) {
         console.error('Error uploading material:', error);
         showToast('Failed to upload material: ' + error.message, 'danger');
+    }
+}
+
+export async function organizeContentView(courseId, state) {
+    try {
+        // Fetch course details
+        const course = await apiFetch(`http://127.0.0.1:8000/api/core/courses/${courseId}/`, {}, state.token);
+        
+        // Fetch all materials for the course
+        const materials = await apiFetch(`http://127.0.0.1:8000/api/core/materials/?course=${courseId}`, {}, state.token);
+        
+        // Fetch course structure if it exists (we'll need to create this API endpoint)
+        let courseStructure = [];
+        try {
+            courseStructure = await apiFetch(`http://127.0.0.1:8000/api/core/course-structure/${courseId}/`, {}, state.token);
+        } catch (error) {
+            console.log('No existing course structure found, creating new one');
+        }
+        
+        // Group materials by type for easier organization
+        const videoMaterials = materials.filter(m => m.file_type === 'video');
+        const documentMaterials = materials.filter(m => m.file_type === 'document');
+        const imageMaterials = materials.filter(m => m.file_type === 'image');
+        const audioMaterials = materials.filter(m => m.file_type === 'audio');
+        const otherMaterials = materials.filter(m => !['video', 'document', 'image', 'audio'].includes(m.file_type));
+        
+        // Render the organize content view
+        renderOrganizeContentView(course, {
+            videos: videoMaterials,
+            documents: documentMaterials,
+            images: imageMaterials,
+            audio: audioMaterials,
+            other: otherMaterials
+        }, courseStructure, state);
+        
+    } catch (error) {
+        console.error('Error loading content organization view:', error);
+        showToast('Failed to load content organization view: ' + error.message, 'danger');
+    }
+}
+
+function renderOrganizeContentView(course, materials, courseStructure, state) {
+    const content = document.getElementById('content');
+    
+    content.innerHTML = `
+        <div class="container-fluid mt-4">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1>Organize Content: ${course.title}</h1>
+                <button class="btn btn-secondary" id="back-to-dashboard">Back to Dashboard</button>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="card mb-4">
+                        <div class="card-header bg-primary text-white">
+                            <h5 class="mb-0">Available Content</h5>
+                        </div>
+                        <div class="card-body">
+                            <ul class="nav nav-tabs" id="availableContentTabs" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active" id="videos-tab" data-bs-toggle="tab" data-bs-target="#videos" type="button" role="tab">
+                                        Videos (${materials.videos.length})
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="documents-tab" data-bs-toggle="tab" data-bs-target="#documents" type="button" role="tab">
+                                        Documents (${materials.documents.length})
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="other-tab" data-bs-toggle="tab" data-bs-target="#other" type="button" role="tab">
+                                        Other (${materials.images.length + materials.audio.length + materials.other.length})
+                                    </button>
+                                </li>
+                            </ul>
+                            
+                            <div class="tab-content mt-3" id="availableContentTabContent">
+                                <!-- Videos Tab -->
+                                <div class="tab-pane fade show active" id="videos" role="tabpanel">
+                                    <div class="available-items" id="available-videos">
+                                        ${materials.videos.length > 0 ? 
+                                            `<div class="list-group available-content-list">
+                                                ${materials.videos.map(video => `
+                                                    <div class="list-group-item list-group-item-action draggable-item" 
+                                                         draggable="true" 
+                                                         data-id="${video.id}" 
+                                                         data-type="video"
+                                                         data-title="${video.title}">
+                                                        <div class="d-flex w-100 justify-content-between align-items-center">
+                                                            <div>
+                                                                <h6 class="mb-1">${video.title}</h6>
+                                                                <small class="text-muted">${video.description.substring(0, 50)}${video.description.length > 50 ? '...' : ''}</small>
+                                                            </div>
+                                                            <i class="bi bi-grip-vertical handle"></i>
+                                                        </div>
+                                                    </div>
+                                                `).join('')}
+                                            </div>` : 
+                                            `<div class="alert alert-info">No video content available</div>`
+                                        }
+                                    </div>
+                                </div>
+                                
+                                <!-- Documents Tab -->
+                                <div class="tab-pane fade" id="documents" role="tabpanel">
+                                    <div class="available-items" id="available-documents">
+                                        ${materials.documents.length > 0 ? 
+                                            `<div class="list-group available-content-list">
+                                                ${materials.documents.map(doc => `
+                                                    <div class="list-group-item list-group-item-action draggable-item" 
+                                                         draggable="true" 
+                                                         data-id="${doc.id}" 
+                                                         data-type="document"
+                                                         data-title="${doc.title}">
+                                                        <div class="d-flex w-100 justify-content-between align-items-center">
+                                                            <div>
+                                                                <h6 class="mb-1">${doc.title}</h6>
+                                                                <small class="text-muted">${doc.description.substring(0, 50)}${doc.description.length > 50 ? '...' : ''}</small>
+                                                            </div>
+                                                            <i class="bi bi-grip-vertical handle"></i>
+                                                        </div>
+                                                    </div>
+                                                `).join('')}
+                                            </div>` : 
+                                            `<div class="alert alert-info">No document content available</div>`
+                                        }
+                                    </div>
+                                </div>
+                                
+                                <!-- Other Tab -->
+                                <div class="tab-pane fade" id="other" role="tabpanel">
+                                    <div class="available-items" id="available-other">
+                                        ${materials.images.length + materials.audio.length + materials.other.length > 0 ? 
+                                            `<div class="list-group available-content-list">
+                                                ${[...materials.images, ...materials.audio, ...materials.other].map(item => `
+                                                    <div class="list-group-item list-group-item-action draggable-item" 
+                                                         draggable="true" 
+                                                         data-id="${item.id}" 
+                                                         data-type="${item.file_type}"
+                                                         data-title="${item.title}">
+                                                        <div class="d-flex w-100 justify-content-between align-items-center">
+                                                            <div>
+                                                                <h6 class="mb-1">${item.title}</h6>
+                                                                <small class="text-muted">${item.file_type.toUpperCase()}: ${item.description.substring(0, 50)}${item.description.length > 50 ? '...' : ''}</small>
+                                                            </div>
+                                                            <i class="bi bi-grip-vertical handle"></i>
+                                                        </div>
+                                                    </div>
+                                                `).join('')}
+                                            </div>` : 
+                                            `<div class="alert alert-info">No other content available</div>`
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">Course Structure</h5>
+                            <div>
+                                <button class="btn btn-sm btn-light" id="add-section-btn">
+                                    <i class="bi bi-plus-circle"></i> Add Section
+                                </button>
+                                <button class="btn btn-sm btn-primary" id="save-structure-btn">
+                                    <i class="bi bi-save"></i> Save Structure
+                                </button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div id="course-structure-container">
+                                ${courseStructure.length > 0 ? 
+                                    renderCourseStructure(courseStructure) : 
+                                    `<div class="alert alert-info">
+                                        <p>No course structure defined yet. Create sections and drag content from the left panel to organize your course.</p>
+                                        <button class="btn btn-primary" id="create-default-structure-btn">Create Default Structure</button>
+                                    </div>`
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add event listeners
+    document.getElementById('back-to-dashboard').addEventListener('click', () => {
+        renderTeacherDashboard(state);
+    });
+    
+    document.getElementById('add-section-btn').addEventListener('click', () => {
+        addNewSection();
+    });
+    
+    document.getElementById('save-structure-btn').addEventListener('click', () => {
+        saveCourseStructure(course.id, state);
+    });
+    
+    if (courseStructure.length === 0) {
+        document.getElementById('create-default-structure-btn')?.addEventListener('click', () => {
+            createDefaultStructure(course.id, state);
+        });
+    }
+    
+    // Initialize drag and drop functionality
+    initializeDragAndDrop();
+}
+
+function renderCourseStructure(structure) {
+    return `
+        <div class="course-structure-list" id="course-structure">
+            ${structure.map((section, sectionIndex) => `
+                <div class="card mb-3 course-section" data-section-id="${section.id || sectionIndex}">
+                    <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-grip-vertical me-2 section-handle"></i>
+                            <input type="text" class="form-control form-control-sm section-title" value="${section.title}" style="width: 300px;">
+                        </div>
+                        <div>
+                            <button class="btn btn-sm btn-outline-danger delete-section-btn">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="section-items-container" data-section-index="${sectionIndex}">
+                            ${section.items && section.items.length > 0 ? 
+                                section.items.map(item => `
+                                    <div class="list-group-item d-flex justify-content-between align-items-center section-item" 
+                                         data-id="${item.id}" 
+                                         data-type="${item.type}">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-grip-vertical me-2 item-handle"></i>
+                                            <div>
+                                                <span class="badge bg-${getBadgeColorForType(item.type)} me-2">${item.type}</span>
+                                                ${item.title}
+                                            </div>
+                                        </div>
+                                        <button class="btn btn-sm btn-outline-danger remove-item-btn">
+                                            <i class="bi bi-x-circle"></i>
+                                        </button>
+                                    </div>
+                                `).join('') : 
+                                `<div class="empty-section-placeholder">Drag content items here</div>`
+                            }
+                        </div>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+function getBadgeColorForType(type) {
+    switch(type) {
+        case 'video': return 'primary';
+        case 'document': return 'success';
+        case 'image': return 'info';
+        case 'audio': return 'warning';
+        default: return 'secondary';
+    }
+}
+
+function addNewSection() {
+    const structureContainer = document.getElementById('course-structure-container');
+    
+    // If there's an initial message, clear it
+    if (structureContainer.querySelector('.alert')) {
+        structureContainer.innerHTML = '<div class="course-structure-list" id="course-structure"></div>';
+    }
+    
+    const courseStructure = document.getElementById('course-structure');
+    if (!courseStructure) {
+        structureContainer.innerHTML = '<div class="course-structure-list" id="course-structure"></div>';
+    }
+    
+    const newSectionId = 'new-' + Date.now();
+    const newSectionHtml = `
+        <div class="card mb-3 course-section" data-section-id="${newSectionId}">
+            <div class="card-header bg-light d-flex justify-content-between align-items-center">
+                <div class="d-flex align-items-center">
+                    <i class="bi bi-grip-vertical me-2 section-handle"></i>
+                    <input type="text" class="form-control form-control-sm section-title" value="New Section" style="width: 300px;">
+                </div>
+                <div>
+                    <button class="btn btn-sm btn-outline-danger delete-section-btn">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="section-items-container" data-section-index="${document.querySelectorAll('.course-section').length}">
+                    <div class="empty-section-placeholder">Drag content items here</div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('course-structure').insertAdjacentHTML('beforeend', newSectionHtml);
+    
+    // Add event listener to the new delete button
+    const newDeleteBtn = document.querySelector(`[data-section-id="${newSectionId}"] .delete-section-btn`);
+    newDeleteBtn.addEventListener('click', function() {
+        document.querySelector(`[data-section-id="${newSectionId}"]`).remove();
+    });
+    
+    // Reinitialize drag and drop for the new section
+    initializeDragAndDrop();
+}
+
+function createDefaultStructure(courseId, state) {
+    const structureContainer = document.getElementById('course-structure-container');
+    
+    const defaultStructure = [
+        { title: "Introduction", items: [] },
+        { title: "Course Content", items: [] },
+        { title: "Additional Resources", items: [] }
+    ];
+    
+    structureContainer.innerHTML = renderCourseStructure(defaultStructure);
+    
+    // Add event listeners to delete buttons
+    document.querySelectorAll('.delete-section-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            this.closest('.course-section').remove();
+        });
+    });
+    
+    // Reinitialize drag and drop
+    initializeDragAndDrop();
+    
+    // Show success message
+    showToast('Default structure created. Drag content from the left panel to organize your course.', 'success');
+}
+
+function initializeDragAndDrop() {
+    // Make items draggable
+    document.querySelectorAll('.draggable-item').forEach(item => {
+        item.addEventListener('dragstart', handleDragStart);
+        item.addEventListener('dragend', handleDragEnd);
+    });
+    
+    // Set up drop zones (section containers)
+    document.querySelectorAll('.section-items-container').forEach(container => {
+        container.addEventListener('dragover', handleDragOver);
+        container.addEventListener('dragenter', handleDragEnter);
+        container.addEventListener('dragleave', handleDragLeave);
+        container.addEventListener('drop', handleDrop);
+    });
+    
+    // Make sections sortable
+    if (typeof Sortable !== 'undefined') {
+        // For sections
+        new Sortable(document.getElementById('course-structure'), {
+            handle: '.section-handle',
+            animation: 150
+        });
+        
+        // For items within sections
+        document.querySelectorAll('.section-items-container').forEach(container => {
+            new Sortable(container, {
+                handle: '.item-handle',
+                animation: 150,
+                group: 'shared'
+            });
+        });
+    } else {
+        console.warn('Sortable.js is not loaded. Section reordering will not work.');
+    }
+    
+    // Add event listeners to delete buttons
+    document.querySelectorAll('.delete-section-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            this.closest('.course-section').remove();
+        });
+    });
+    
+    // Add event listeners to remove item buttons
+    document.querySelectorAll('.remove-item-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            this.closest('.section-item').remove();
+            
+            // If section is now empty, add placeholder
+            const container = this.closest('.section-items-container');
+            if (container.querySelectorAll('.section-item').length === 0) {
+                container.innerHTML = '<div class="empty-section-placeholder">Drag content items here</div>';
+            }
+        });
+    });
+}
+
+// Drag and drop handlers
+function handleDragStart(e) {
+    e.dataTransfer.setData('text/plain', JSON.stringify({
+        id: this.dataset.id,
+        type: this.dataset.type,
+        title: this.dataset.title
+    }));
+    this.classList.add('dragging');
+}
+
+function handleDragEnd(e) {
+    this.classList.remove('dragging');
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+}
+
+function handleDragEnter(e) {
+    e.preventDefault();
+    this.classList.add('drag-over');
+}
+
+function handleDragLeave(e) {
+    this.classList.remove('drag-over');
+}
+
+function handleDrop(e) {
+    e.preventDefault();
+    this.classList.remove('drag-over');
+    
+    // Get the dragged item data
+    const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+    
+    // Remove placeholder if it exists
+    const placeholder = this.querySelector('.empty-section-placeholder');
+    if (placeholder) {
+        placeholder.remove();
+    }
+    
+    // Create a new item in the section
+    const newItem = document.createElement('div');
+    newItem.className = 'list-group-item d-flex justify-content-between align-items-center section-item';
+    newItem.dataset.id = data.id;
+    newItem.dataset.type = data.type;
+    
+    newItem.innerHTML = `
+        <div class="d-flex align-items-center">
+            <i class="bi bi-grip-vertical me-2 item-handle"></i>
+            <div>
+                <span class="badge bg-${getBadgeColorForType(data.type)} me-2">${data.type}</span>
+                ${data.title}
+            </div>
+        </div>
+        <button class="btn btn-sm btn-outline-danger remove-item-btn">
+            <i class="bi bi-x-circle"></i>
+        </button>
+    `;
+    
+    this.appendChild(newItem);
+    
+    // Add event listener to the new remove button
+    newItem.querySelector('.remove-item-btn').addEventListener('click', function() {
+        newItem.remove();
+        
+        // If section is now empty, add placeholder
+        if (e.currentTarget.querySelectorAll('.section-item').length === 0) {
+            e.currentTarget.innerHTML = '<div class="empty-section-placeholder">Drag content items here</div>';
+        }
+    });
+}
+
+async function saveCourseStructure(courseId, state) {
+    // Collect the structure data
+    const sections = [];
+    
+    document.querySelectorAll('.course-section').forEach(sectionEl => {
+        const sectionTitle = sectionEl.querySelector('.section-title').value;
+        const sectionId = sectionEl.dataset.sectionId;
+        const items = [];
+        
+        sectionEl.querySelectorAll('.section-item').forEach(itemEl => {
+            items.push({
+                id: itemEl.dataset.id,
+                type: itemEl.dataset.type
+            });
+        });
+        
+        sections.push({
+            id: sectionId,
+            title: sectionTitle,
+            items: items
+        });
+    });
+    
+    const structureData = {
+        course_id: courseId,
+        sections: sections
+    };
+    
+    try {
+        // Send the structure to the server
+        await apiFetch('http://127.0.0.1:8000/api/core/course-structure/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(structureData)
+        }, state.token);
+        
+        showToast('Course structure saved successfully!', 'success');
+    } catch (error) {
+        console.error('Error saving course structure:', error);
+        showToast('Failed to save course structure: ' + error.message, 'danger');
     }
 }

@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     CourseViewSet, EnrollmentViewSet, CourseMaterialViewSet, AssignmentViewSet,
     SubmissionViewSet, GradeViewSet, CourseFeedbackViewSet, AnnouncementViewSet,
-    VideoResourceViewSet
+    VideoResourceViewSet, CourseStructureViewSet
 )
 
 app_name = "core"
@@ -18,6 +18,7 @@ router.register(r'grades', GradeViewSet)
 router.register(r'feedback', CourseFeedbackViewSet)
 router.register(r'announcements', AnnouncementViewSet)
 router.register(r'video-resources', VideoResourceViewSet)
+router.register(r'course-structure', CourseStructureViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),

@@ -1,5 +1,8 @@
 from rest_framework import serializers
-from .models import Course, Enrollment, CourseMaterial, VideoResource, Assignment, Submission, Grade, CourseFeedback, Announcement
+from .models import (
+    Course, Enrollment, CourseMaterial, VideoResource,
+    Assignment, Submission, Grade, CourseFeedback, Announcement, CourseStructure
+)
 from userauths.models import User  # Import User model
 from userauths.serializers import UserSerializer
 
@@ -69,3 +72,8 @@ class AnnouncementSerializer(serializers.ModelSerializer):
     class Meta:
         model = Announcement
         fields = ['id', 'course', 'title', 'content', 'posted_by', 'posted_at', 'is_pinned']
+
+class CourseStructureSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CourseStructure
+        fields = ['id', 'course', 'structure_data', 'last_updated']

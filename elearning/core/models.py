@@ -140,3 +140,12 @@ class Announcement(models.Model):
     def __str__(self):
         return f"{self.course.title} - {self.title}"
 
+
+class CourseStructure(models.Model):
+    course = models.OneToOneField(Course, on_delete=models.CASCADE, related_name='structure')
+    structure_data = models.JSONField(default=dict)
+    last_updated = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"Structure for {self.course.title}"
+
