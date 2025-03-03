@@ -1,3 +1,4 @@
+// modules/courseContent.js
 import { apiFetch } from './api.js';
 import { showToast } from '../components/toast.js';
 
@@ -5,19 +6,27 @@ import { showToast } from '../components/toast.js';
 async function fetchCourseStructure(courseId, state) {
     try {
         console.log('Fetching course structure for course ID:', courseId);
-        const response = await apiFetch(`/api/core/course-structure/?course=${courseId}`, {}, state.token);
+        
+        const response = await apiFetch(`http://127.0.0.1:8000/api/core/course-structure/?course=${courseId}`, {}, state.token);
         console.log('Course structure API response:', response);
         
-        if (response && response.length > 0) {
-            return response[0].structure_data; // Return sections array
+        if (response && response.length > 0 && response[0].structure_data) {
+            const structureData = typeof response[0].structure_data === 'string' 
+                ? JSON.parse(response[0].structure_data) 
+                : response[0].structure_data;
+            
+            if (Array.isArray(structureData) && structureData.length > 0) {
+                console.log('Using saved structure data:', structureData);
+                return structureData;
+            }
         }
         
-        // If no structure exists, create a default structure from materials
-        console.log('No structure found, creating from materials');
-        const materials = await apiFetch(`/api/core/materials/?course=${courseId}`, {}, state.token);
+        // Fallback to default structure if no saved structure or it's empty
+        console.log('No valid saved structure found, creating default from materials');
+        const materials = await apiFetch(`http://127.0.0.1:8000/api/core/materials/?course=${courseId}`, {}, state.token);
+        console.log('Materials fetched for default structure:', materials);
         
         if (materials && materials.length > 0) {
-            // Group materials by type
             const videoMaterials = materials.filter(m => m.file_type === 'video');
             const documentMaterials = materials.filter(m => m.file_type === 'document');
             const imageMaterials = materials.filter(m => m.file_type === 'image');
@@ -25,41 +34,40 @@ async function fetchCourseStructure(courseId, state) {
             const otherMaterials = materials.filter(m => 
                 !['video', 'document', 'image', 'audio'].includes(m.file_type));
             
-            // Create a default structure
             const defaultStructure = [];
             
             if (videoMaterials.length > 0) {
                 defaultStructure.push({
                     title: "Videos",
-                    items: videoMaterials.map(m => ({ id: m.id, type: 'video' }))
+                    items: videoMaterials.map(m => ({ id: m.id.toString(), type: 'video' }))
                 });
             }
             
             if (documentMaterials.length > 0) {
                 defaultStructure.push({
                     title: "Documents",
-                    items: documentMaterials.map(m => ({ id: m.id, type: 'document' }))
+                    items: documentMaterials.map(m => ({ id: m.id.toString(), type: 'document' }))
                 });
             }
             
             if (imageMaterials.length > 0) {
                 defaultStructure.push({
                     title: "Images",
-                    items: imageMaterials.map(m => ({ id: m.id, type: 'image' }))
+                    items: imageMaterials.map(m => ({ id: m.id.toString(), type: 'image' }))
                 });
             }
             
             if (audioMaterials.length > 0) {
                 defaultStructure.push({
                     title: "Audio",
-                    items: audioMaterials.map(m => ({ id: m.id, type: 'audio' }))
+                    items: audioMaterials.map(m => ({ id: m.id.toString(), type: 'audio' }))
                 });
             }
             
             if (otherMaterials.length > 0) {
                 defaultStructure.push({
                     title: "Other Materials",
-                    items: otherMaterials.map(m => ({ id: m.id, type: m.file_type }))
+                    items: otherMaterials.map(m => ({ id: m.id.toString(), type: m.file_type }))
                 });
             }
             
@@ -67,6 +75,7 @@ async function fetchCourseStructure(courseId, state) {
             return defaultStructure;
         }
         
+        console.log('No materials found, returning empty structure');
         return [];
     } catch (error) {
         console.error('Error fetching course structure:', error);
@@ -78,7 +87,9 @@ async function fetchCourseStructure(courseId, state) {
 // Fetch material details by ID
 async function fetchMaterialDetails(materialId, state) {
     try {
+        console.log(`Fetching material details for ID: ${materialId}`);
         const material = await apiFetch(`http://127.0.0.1:8000/api/core/materials/${materialId}/`, {}, state.token);
+        console.log(`Material details for ID ${materialId}:`, material);
         return material;
     } catch (error) {
         console.error(`Error fetching material ${materialId}:`, error);
@@ -108,6 +119,7 @@ export async function renderCourseContentPage(courseId, state) {
     try {
         // Fetch course and structure
         const course = await apiFetch(`http://127.0.0.1:8000/api/core/courses/${courseId}/`, {}, state.token);
+        console.log('Course details:', course);
         const structure = await fetchCourseStructure(courseId, state);
 
         if (!structure || structure.length === 0) {
@@ -156,7 +168,10 @@ export async function renderCourseContentPage(courseId, state) {
                                         <div class="section-items" id="section-items-${index}">
                                             ${section.items.map((item, itemIndex) => {
                                                 const material = materialMap.get(parseInt(item.id));
-                                                if (!material) return '';
+                                                if (!material) {
+                                                    console.warn(`Material not found for ID: ${item.id}`);
+                                                    return '';
+                                                }
                                                 
                                                 let icon = '';
                                                 switch (item.type) {
@@ -228,17 +243,11 @@ export async function renderCourseContentPage(courseId, state) {
         // Add event listeners for content items
         document.querySelectorAll('.item-link').forEach(item => {
             item.addEventListener('click', () => {
-                // Remove active class from all items
                 document.querySelectorAll('.item-link').forEach(i => i.classList.remove('active'));
-                
-                // Add active class to clicked item
                 item.classList.add('active');
                 
-                // Get section and item index
                 const sectionIndex = item.getAttribute('data-section');
                 const itemIndex = item.getAttribute('data-item');
-                
-                // Get the material
                 const section = structure[sectionIndex];
                 const itemData = section.items[itemIndex];
                 const material = materialMap.get(parseInt(itemData.id));
@@ -248,9 +257,7 @@ export async function renderCourseContentPage(courseId, state) {
                     return;
                 }
                 
-                // Display the content based on type
                 const contentDisplay = document.getElementById('content-display');
-                
                 switch (itemData.type) {
                     case 'video':
                         contentDisplay.innerHTML = `
@@ -275,7 +282,6 @@ export async function renderCourseContentPage(courseId, state) {
                             </div>
                         `;
                         break;
-                        
                     case 'document':
                         contentDisplay.innerHTML = `
                             <h3>${material.title}</h3>
@@ -293,7 +299,6 @@ export async function renderCourseContentPage(courseId, state) {
                             </div>
                         `;
                         break;
-                        
                     case 'image':
                         contentDisplay.innerHTML = `
                             <h3>${material.title}</h3>
@@ -309,7 +314,6 @@ export async function renderCourseContentPage(courseId, state) {
                             </div>
                         `;
                         break;
-                        
                     case 'audio':
                         contentDisplay.innerHTML = `
                             <h3>${material.title}</h3>
@@ -325,7 +329,6 @@ export async function renderCourseContentPage(courseId, state) {
                             </div>
                         `;
                         break;
-                        
                     default:
                         contentDisplay.innerHTML = `
                             <h3>${material.title}</h3>
@@ -386,6 +389,7 @@ export async function renderCourseContentPage(courseId, state) {
             const firstSectionItems = document.getElementById('section-items-0');
             if (firstSectionItems) {
                 firstSectionItems.style.display = 'block';
+                firstSectionItems.previousElementSibling.querySelector('i').classList.replace('bi-chevron-down', 'bi-chevron-up');
             }
         }
 

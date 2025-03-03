@@ -107,12 +107,24 @@ class CourseStructureViewSet(viewsets.ModelViewSet):
         user = self.request.user
         course_id = self.request.query_params.get('course')
         
+        # Base queryset
+        queryset = CourseStructure.objects.all()
+        
+        # Filter by course if specified
+        if course_id:
+            queryset = queryset.filter(course_id=course_id)
+            
+        # For teachers, only show their courses
         if user.user_type == 'teacher':
-            queryset = CourseStructure.objects.filter(course__teacher=user)
-            if course_id:
-                queryset = queryset.filter(course_id=course_id)
-            return queryset
-        return CourseStructure.objects.none()
+            queryset = queryset.filter(course__teacher=user)
+        # For students, show courses they're enrolled in
+        else:
+            queryset = queryset.filter(
+                course__enrollments__student=user,
+                course__enrollments__is_active=True
+            ).distinct()
+            
+        return queryset
     
     @action(detail=False, methods=['post'])
     def save_structure(self, request):
