@@ -1159,8 +1159,8 @@ export function showAddAssignmentModal(courseId, state) {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowStr = tomorrow.toISOString().slice(0, 16);
-    
-    // Create modal HTML
+
+    // Create modal HTML with file upload field
     const modalHtml = `
         <div class="modal fade" id="addAssignmentModal" tabindex="-1" aria-hidden="true">
             <div class="modal-dialog modal-lg">
@@ -1178,6 +1178,11 @@ export function showAddAssignmentModal(courseId, state) {
                             <div class="mb-3">
                                 <label for="assignment-description" class="form-label">Description</label>
                                 <textarea class="form-control" id="assignment-description" rows="4" required></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="assignment-file" class="form-label">Instructions File (Optional)</label>
+                                <input type="file" class="form-control" id="assignment-file" accept=".pdf,.doc,.docx,.txt">
+                                <small class="text-muted">Supported formats: PDF, Word, Text</small>
                             </div>
                             <div class="row mb-3">
                                 <div class="col">
@@ -1199,15 +1204,15 @@ export function showAddAssignmentModal(courseId, state) {
             </div>
         </div>
     `;
-    
+
     document.body.insertAdjacentHTML('beforeend', modalHtml);
     const modal = new bootstrap.Modal(document.getElementById('addAssignmentModal'));
     modal.show();
-    
+
     document.getElementById('save-assignment-btn').addEventListener('click', () => {
-        createAssignment(courseId, modal, state);
+        createAssignment(courseId, modal, state); // Call createAssignment when button is clicked
     });
-    
+
     document.getElementById('addAssignmentModal').addEventListener('hidden.bs.modal', function() {
         this.remove();
     });
