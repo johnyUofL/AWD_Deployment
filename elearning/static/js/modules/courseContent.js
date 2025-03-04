@@ -341,6 +341,47 @@ export async function renderCourseContentPage(courseId, state) {
                             </div>
                         `;
                         break;
+                    case 'assignment':
+                        contentDisplay.innerHTML = `
+                            <div class="card">
+                                <div class="card-header bg-primary text-white">
+                                    <h5 class="mb-0">Assignment: ${material.title}</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <h6>Description:</h6>
+                                        <p>${material.description}</p>
+                                    </div>
+                                    <div class="mb-3">
+                                        <h6>Due Date:</h6>
+                                        <p>${new Date(material.due_date).toLocaleString()}</p>
+                                    </div>
+                                    <div class="mb-3">
+                                        <h6>Points:</h6>
+                                        <p>${material.total_points}</p>
+                                    </div>
+                                    ${material.file_path ? `
+                                        <div class="mb-3">
+                                            <h6>Assignment File:</h6>
+                                            <a href="${material.file_path}" class="btn btn-outline-primary" target="_blank">
+                                                <i class="bi bi-download"></i> Download Assignment
+                                            </a>
+                                        </div>
+                                    ` : ''}
+                                    <div class="mt-4">
+                                        <button class="btn btn-success submit-assignment-btn" data-id="${material.id}">
+                                            <i class="bi bi-upload"></i> Submit Assignment
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                        
+                        // Add event listener for submit button
+                        contentDisplay.querySelector('.submit-assignment-btn').addEventListener('click', () => {
+                            showAssignmentSubmissionModal(material.id, state);
+                        });
+                        break;
                     default:
                         contentDisplay.innerHTML = `
                             <h3>${material.title}</h3>
@@ -444,6 +485,107 @@ export async function renderCourseContentPage(courseId, state) {
             });
         });
     }
+}
+
+function showAssignmentSubmissionModal(assignmentId, state) {
+    // Create modal element
+    const modalElement = document.createElement('div');
+    modalElement.className = 'modal fade';
+    modalElement.id = 'assignmentSubmissionModal';
+    modalElement.tabIndex = '-1';
+    modalElement.setAttribute('aria-labelledby', 'assignmentSubmissionModalLabel');
+    modalElement.setAttribute('aria-hidden', 'true');
+    
+    modalElement.innerHTML = `
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="assignmentSubmissionModalLabel">Submit Assignment</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="assignment-submission-form">
+                        <div class="mb-3">
+                            <label for="submission-file" class="form-label">Upload your assignment file</label>
+                            <input class="form-control" type="file" id="submission-file" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="submission-comments" class="form-label">Comments (optional)</label>
+                            <textarea class="form-control" id="submission-comments" rows="3"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="submit-assignment-btn">Submit</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add modal to body
+    document.body.appendChild(modalElement);
+    
+    // Initialize Bootstrap modal
+    const modal = new bootstrap.Modal(modalElement);
+    modal.show();
+    
+    // Handle form submission
+    document.getElementById('submit-assignment-btn').addEventListener('click', async () => {
+        const fileInput = document.getElementById('submission-file');
+        const comments = document.getElementById('submission-comments').value;
+        
+        if (!fileInput.files || fileInput.files.length === 0) {
+            showToast('Please select a file to upload', 'warning');
+            return;
+        }
+        
+        const file = fileInput.files[0];
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('assignment', assignmentId);
+        formData.append('comments', comments);
+        
+        try {
+            // Upload the file
+            const response = await fetch('http://127.0.0.1:8000/api/core/submissions/', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Token ${state.token}`
+                },
+                body: formData
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to submit assignment');
+            }
+            
+            // Close the modal
+            modal.hide();
+            
+            // Show success message
+            showToast('Assignment submitted successfully!', 'success');
+            
+            // Remove the modal from DOM after hiding
+            modalElement.addEventListener('hidden.bs.modal', function () {
+                modalElement.remove();
+            });
+            
+            // Refresh the page to show updated submission status
+            setTimeout(() => {
+                window.location.reload();
+            }, 1500);
+            
+        } catch (error) {
+            console.error('Error submitting assignment:', error);
+            showToast('Failed to submit assignment: ' + error.message, 'danger');
+        }
+    });
+    
+    // Remove the modal from DOM when it's closed
+    modalElement.addEventListener('hidden.bs.modal', function () {
+        modalElement.remove();
+    });
 }
 
 export default { renderCourseContentPage };

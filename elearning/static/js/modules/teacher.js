@@ -2551,6 +2551,9 @@ export async function organizeContentView(courseId, state) {
         // Fetch all materials for the course
         const materials = await apiFetch(`http://127.0.0.1:8000/api/core/materials/?course=${courseId}`, {}, state.token);
         
+        // Fetch all assignments for the course
+        const assignments = await apiFetch(`http://127.0.0.1:8000/api/core/assignments/?course=${courseId}`, {}, state.token);
+        
         // Fetch course structure if it exists
         let courseStructure = [];
         try {
@@ -2570,13 +2573,14 @@ export async function organizeContentView(courseId, state) {
         const audioMaterials = materials.filter(m => m.file_type === 'audio');
         const otherMaterials = materials.filter(m => !['video', 'document', 'image', 'audio'].includes(m.file_type));
         
-        // Render the organize content view
+        // Render the organize content view with assignments
         renderOrganizeContentView(course, {
             videos: videoMaterials,
             documents: documentMaterials,
             images: imageMaterials,
             audio: audioMaterials,
-            other: otherMaterials
+            other: otherMaterials,
+            assignments: assignments  // Add assignments to available content
         }, courseStructure, state);
         
     } catch (error) {
@@ -2611,6 +2615,11 @@ function renderOrganizeContentView(course, materials, courseStructure, state) {
                                 <li class="nav-item" role="presentation">
                                     <button class="nav-link" id="documents-tab" data-bs-toggle="tab" data-bs-target="#documents" type="button" role="tab">
                                         Documents (${materials.documents.length})
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="assignments-tab" data-bs-toggle="tab" data-bs-target="#assignments" type="button" role="tab">
+                                        Assignments (${materials.assignments.length})
                                     </button>
                                 </li>
                                 <li class="nav-item" role="presentation">
@@ -2669,6 +2678,32 @@ function renderOrganizeContentView(course, materials, courseStructure, state) {
                                                 `).join('')}
                                             </div>` : 
                                             `<div class="alert alert-info">No document content available</div>`
+                                        }
+                                    </div>
+                                </div>
+                                
+                                <!-- Assignments Tab -->
+                                <div class="tab-pane fade" id="assignments" role="tabpanel">
+                                    <div class="available-items" id="available-assignments">
+                                        ${materials.assignments.length > 0 ? 
+                                            `<div class="list-group available-content-list">
+                                                ${materials.assignments.map(assignment => `
+                                                    <div class="list-group-item list-group-item-action draggable-item" 
+                                                         draggable="true" 
+                                                         data-id="${assignment.id}" 
+                                                         data-type="assignment"
+                                                         data-title="${assignment.title}">
+                                                        <div class="d-flex w-100 justify-content-between align-items-center">
+                                                            <div>
+                                                                <h6 class="mb-1">${assignment.title}</h6>
+                                                                <small class="text-muted">Due: ${new Date(assignment.due_date).toLocaleDateString()}</small>
+                                                            </div>
+                                                            <i class="bi bi-grip-vertical handle"></i>
+                                                        </div>
+                                                    </div>
+                                                `).join('')}
+                                            </div>` : 
+                                            `<div class="alert alert-info">No assignments available</div>`
                                         }
                                     </div>
                                 </div>
@@ -2790,6 +2825,13 @@ function renderCourseStructure(structure) {
                                             <i class="bi bi-x-circle"></i>
                                         </button>
                                     </div>
+                                    ${item.type === 'assignment' ? `
+                                        <div class="ms-4 mb-2 assignment-submit-container" data-for-item="${item.id}">
+                                            <button class="btn btn-sm btn-outline-primary submit-assignment-btn" data-id="${item.id}" disabled>
+                                                <i class="bi bi-upload"></i> Submit Assignment (Teacher View)
+                                            </button>
+                                        </div>
+                                    ` : ''}
                                 `).join('') : 
                                 `<div class="empty-section-placeholder">Drag content items here</div>`
                             }
@@ -2807,6 +2849,7 @@ function getBadgeColorForType(type) {
         case 'document': return 'success';
         case 'image': return 'info';
         case 'audio': return 'warning';
+        case 'assignment': return 'danger';  // Distinct color for assignments
         default: return 'secondary';
     }
 }
@@ -2864,6 +2907,7 @@ function createDefaultStructure(courseId, state) {
     const defaultStructure = [
         { title: "Introduction", items: [] },
         { title: "Course Content", items: [] },
+        { title: "Assignments", items: [] },
         { title: "Additional Resources", items: [] }
     ];
     
@@ -3000,8 +3044,29 @@ function handleDrop(e) {
     
     this.appendChild(newItem);
     
+    // Add "Submit Assignment" button for assignments
+    if (data.type === 'assignment') {
+        const submitContainer = document.createElement('div');
+        submitContainer.className = 'ms-4 mb-2 assignment-submit-container';
+        submitContainer.dataset.forItem = data.id;
+        submitContainer.innerHTML = `
+            <button class="btn btn-sm btn-outline-primary submit-assignment-btn" data-id="${data.id}" disabled>
+                <i class="bi bi-upload"></i> Submit Assignment (Teacher View)
+            </button>
+        `;
+        this.appendChild(submitContainer);
+    }
+    
     // Add event listener to the new remove button
     newItem.querySelector('.remove-item-btn').addEventListener('click', function() {
+        // Also remove the submit button container if this is an assignment
+        if (data.type === 'assignment') {
+            const submitContainer = document.querySelector(`.assignment-submit-container[data-for-item="${data.id}"]`);
+            if (submitContainer) {
+                submitContainer.remove();
+            }
+        }
+        
         newItem.remove();
         
         // If section is now empty, add placeholder
