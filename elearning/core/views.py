@@ -118,7 +118,7 @@ class SubmissionViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         # Ensure only students can submit assignments and link the submission to the student
-        if self.request.user.user_type != 'student':  # Assuming User has a `user_type` field
+        if self.request.user.user_type != 'student':
             return Response({'error': 'Only students can submit assignments'}, status=403)
         
         assignment_id = self.request.data.get('assignment')
@@ -127,6 +127,8 @@ class SubmissionViewSet(viewsets.ModelViewSet):
             # Check if the student is enrolled in the course
             if not Enrollment.objects.filter(student=self.request.user, course=assignment.course, is_active=True).exists():
                 return Response({'error': 'You are not enrolled in this course'}, status=403)
+            
+            # Save with the student set to the current user
             serializer.save(student=self.request.user)
         except Assignment.DoesNotExist:
             return Response({'error': 'Assignment not found'}, status=404)

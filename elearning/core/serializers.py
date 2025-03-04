@@ -59,11 +59,12 @@ class AssignmentSerializer(serializers.ModelSerializer):
     
 class SubmissionSerializer(serializers.ModelSerializer):
     student = UserSerializer(read_only=True)
-    assignment = AssignmentSerializer(read_only=True)
+    assignment_detail = AssignmentSerializer(source='assignment', read_only=True)  # For detailed output
+    assignment = serializers.PrimaryKeyRelatedField(queryset=Assignment.objects.all(), write_only=True)  # For input
     
     class Meta:
         model = Submission
-        fields = ['id', 'assignment', 'student', 'submission_date', 'file_path', 'comments', 'is_late']
+        fields = ['id', 'assignment', 'assignment_detail', 'student', 'submission_date', 'file_path', 'comments', 'is_late']
     
     def validate_file_path(self, value):
         # Optional: Add validation for student submission files

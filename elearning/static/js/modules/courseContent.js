@@ -559,28 +559,50 @@ function showAssignmentSubmissionModal(assignmentId, state) {
         
         const file = fileInput.files[0];
         const formData = new FormData();
-        formData.append('file', file);
+        formData.append('file_path', file);
         formData.append('assignment', assignmentId);
-        formData.append('comments', comments);
+        formData.append('comments', comments || '');  // Make sure comments are included
         
         try {
             // Show loading indicator
             document.getElementById('submit-assignment-btn-modal').innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Uploading...';
             document.getElementById('submit-assignment-btn-modal').disabled = true;
             
-            // Upload the file
+            // Log the form data for debugging
+            console.log('Submitting assignment with data:', {
+                assignmentId,
+                comments: comments || '',
+                fileName: file.name,
+                fileSize: file.size,
+                fileType: file.type
+            });
+            
+            // Submit the assignment
             const response = await fetch('http://127.0.0.1:8000/api/core/submissions/', {
                 method: 'POST',
                 headers: {
-                    'Authorization': `Token ${state.token}`
+                    'Authorization': `Bearer ${state.token}`
                 },
                 body: formData
             });
             
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.detail || 'Failed to submit assignment');
+                // Try to get detailed error information
+                let errorText = '';
+                try {
+                    const errorData = await response.json();
+                    console.error('Server error details:', errorData);
+                    errorText = JSON.stringify(errorData);
+                } catch (e) {
+                    errorText = await response.text();
+                    console.error('Server error response:', errorText);
+                }
+                
+                throw new Error(`Submission failed: ${response.status} - ${errorText}`);
             }
+            
+            const result = await response.json();
+            console.log('Submission successful:', result);
             
             // Close the modal
             modal.hide();

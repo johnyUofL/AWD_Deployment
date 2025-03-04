@@ -1,0 +1,14 @@
+elearning/static/js/
+├── app.js                  # Main entry point (minimal)
+├── modules/
+│   ├── auth.js             # Authentication-related functions
+│   ├── api.js              # API communication functions
+│   ├── ui.js               # UI rendering functions
+│   ├── courses.js          # Course-related functions
+│   ├── teacher.js          # Teacher-specific functions
+│   ├── student.js          # Student-specific functions
+│   └── utils.js            # Utility functions
+└── components/
+    ├── toast.js            # Toast notification component
+    ├── modal.js            # Modal dialog component
+    └── course-card.js      # Course card component

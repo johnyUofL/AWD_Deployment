@@ -458,11 +458,11 @@ async function submitAssignment(assignmentId, modal) {
         }
         
         // Submit the assignment
-        await apiFetch('http://127.0.0.1:8000/api/core/submissions/', {
+        const response = await apiFetch('http://127.0.0.1:8000/api/core/submissions/', {
             method: 'POST',
             body: formData,
             headers: {} // Let browser set content-type for FormData
-        });
+        }, window.appState.token);
         
         showToast('Assignment submitted successfully!', 'success');
         modal.hide();
