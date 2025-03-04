@@ -2,16 +2,21 @@ from django.db import models
 from userauths.models import User
 from core.models import Course
 
+
 class ChatRoom(models.Model):
-    name = models.CharField(max_length=100)
+    name = models.CharField(max_length=100, blank=True)  # Optional for private chats
     description = models.TextField(blank=True)
-    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='chat_rooms')
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='chat_rooms', null=True, blank=True)
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='created_chat_rooms')
     created_at = models.DateTimeField(auto_now_add=True)
     is_active = models.BooleanField(default=True)
+    is_private = models.BooleanField(default=False)  # New field to indicate private chat
     
     def __str__(self):
-        return f"{self.course.title} - {self.name}"
+        if self.is_private and self.participants.count() == 2:
+            users = self.participants.values_list('user__username', flat=True)
+            return f"Private Chat: {', '.join(users)}"
+        return f"{self.course.title if self.course else 'No Course'} - {self.name or 'Unnamed'}"
 
 class ChatMessage(models.Model):
     room = models.ForeignKey(ChatRoom, on_delete=models.CASCADE, related_name='messages')

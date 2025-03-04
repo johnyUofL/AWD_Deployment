@@ -1,3 +1,4 @@
+# elearning/settings.py
 import os
 from datetime import datetime, timedelta
 
@@ -13,35 +14,30 @@ SECRET_KEY = 'y21*riec=rc#r8@-1(3lm1zib8l%lx67ppp5+hz1w8tbo02+-j'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']  # Add for development; update for production
+ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 
 AUTH_USER_MODEL = 'userauths.User'
 
 # Application definition
 INSTALLED_APPS = [
-    # Custom Django admin
     'jazzmin',
     'django.contrib.admin',
     'django.contrib.auth',
-    'userauths.apps.UserauthsConfig',  # Ensure apps.py exists in userauths
+    'userauths.apps.UserauthsConfig',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-
-    # Custom apps
     'core',
     'addon',
-
-    # Third-party apps
-    'corsheaders',  # Added for frontend API access
+    'corsheaders',
     'rest_framework',
     'rest_framework_simplejwt',
     'channels',
     'celery',
-    'taggit',  # Optional unless used
-    'crispy_forms',  # Optional unless used
-    'import_export',  # Optional unless used
+    'taggit',
+    'crispy_forms',
+    'import_export',
 ]
 
 # REST Framework settings
@@ -61,7 +57,7 @@ SIMPLE_JWT = {
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',  # Added for CORS
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -93,10 +89,7 @@ ASGI_APPLICATION = 'elearning.asgi.application'
 # Channels settings for WebSockets
 CHANNEL_LAYERS = {
     'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            'hosts': [('127.0.0.1', 6379)],
-        },
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
     },
 }
 
@@ -117,15 +110,15 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 # Login and Logout Redirects
-LOGIN_REDIRECT_URL = '/'  # Redirects to http://127.0.0.1:8000/
-LOGOUT_REDIRECT_URL = '/accounts/logout/'  
+LOGIN_REDIRECT_URL = '/'
+LOGOUT_REDIRECT_URL = '/accounts/logout/'
 
 # Celery settings
 CELERY_BROKER_URL = 'redis://localhost:6379/1'
 CELERY_RESULT_BACKEND = 'redis://localhost:6379/1'
-CELERY_ACCEPT_CONTENT = ['json']  # Added for safety
-CELERY_TASK_SERIALIZER = 'json'   # Added for safety
-CELERY_RESULT_SERIALIZER = 'json' # Added for safety
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
 
 # Internationalization
 LANGUAGE_CODE = 'en-us'
@@ -146,7 +139,7 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 # CORS settings (for frontend API access)
 CORS_ALLOW_ALL_ORIGINS = True  # THIS SHOULD BE FALSE WHEN UPLOADED IN SERVER
 CORS_ALLOWED_ORIGINS = [
-    'http://localhost:3000',  
+    'http://localhost:3000',
 ]
 
 # Jazzmin settings

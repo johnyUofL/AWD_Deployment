@@ -1,3 +1,4 @@
+# elearning/urls.py
 from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
@@ -10,7 +11,6 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('', serve, {'document_root': settings.STATICFILES_DIRS[0], 'path': 'index.html'}),
     path('courses/', serve, {'document_root': settings.STATICFILES_DIRS[0], 'path': 'index.html'}),
-    path('chat/', include(('addon.urls', 'addon'), namespace='addon')),
     path('accounts/login/', custom_login, name='login'),
     path('accounts/logout/', custom_logout, name='logout'),
     path('accounts/', include('django.contrib.auth.urls')),
@@ -19,4 +19,5 @@ urlpatterns = [
     path('api/addon/', include(('addon.api_urls', 'addon'), namespace='addon_api')),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('chat/', include('addon.urls')),  # Single entry for addon URLs
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) + static(settings.STATIC_URL, document_root=settings.STATICFILES_DIRS[0])
