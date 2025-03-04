@@ -56,7 +56,7 @@ class CourseMaterialViewSet(viewsets.ModelViewSet):
             except Exception as e:
                 print(f"Error deleting file: {e}")
         instance.delete()
-
+        
 class AssignmentViewSet(viewsets.ModelViewSet):
     queryset = Assignment.objects.all()
     serializer_class = AssignmentSerializer
@@ -65,23 +65,25 @@ class AssignmentViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.user_type == 'teacher':
-            # Teachers see all assignments for their courses
             return Assignment.objects.filter(course__teacher=user)
         else:
-            # Students see assignments for courses they're enrolled in
             return Assignment.objects.filter(
                 course__enrollments__student=user,
                 course__enrollments__is_active=True
             ).distinct()
     
     def perform_create(self, serializer):
-        # Ensure only teachers can create assignments
-        if self.request.user.user_type != 'teacher':  # Assuming User has a `user_type` field
+        print(f"Request data: {self.request.data}")  # Log incoming data
+        if self.request.user.user_type != 'teacher':
             return Response({'error': 'Only teachers can create assignments'}, status=403)
-        serializer.save()
+        try:
+            serializer.save()
+            print("Assignment saved successfully")
+        except Exception as e:
+            print(f"Error saving assignment: {e}")
+            raise
     
     def perform_destroy(self, instance):
-        # Delete the assignment file from storage if it exists
         if instance.file_path and os.path.exists(os.path.join(settings.MEDIA_ROOT, str(instance.file_path))):
             try:
                 os.remove(os.path.join(settings.MEDIA_ROOT, str(instance.file_path)))

@@ -42,19 +42,18 @@ class CourseMaterialSerializer(serializers.ModelSerializer):
                   'file_type', 'upload_date', 'is_visible', 'video_details']
 
 class AssignmentSerializer(serializers.ModelSerializer):
-    course = CourseSerializer(read_only=True)  # Optional: Include course details in the response
+    course = serializers.PrimaryKeyRelatedField(queryset=Course.objects.all())  # Accept course ID as input
     
     class Meta:
         model = Assignment
         fields = ['id', 'course', 'title', 'description', 'file_path', 'due_date', 'total_points', 'creation_date']
     
     def validate_file_path(self, value):
-        # Optional: Add validation for file types or size
         if value:
-            valid_extensions = ['.pdf', '.doc', '.docx', '.txt']  # Example allowed file types
+            valid_extensions = ['.pdf', '.doc', '.docx', '.txt']
             if not value.name.lower().endswith(tuple(valid_extensions)):
                 raise serializers.ValidationError("Only PDF, DOC, DOCX, and TXT files are allowed.")
-            if value.size > 10 * 1024 * 1024:  # Example: Limit to 10MB
+            if value.size > 10 * 1024 * 1024:  # 10MB limit
                 raise serializers.ValidationError("File size must not exceed 10MB.")
         return value
     

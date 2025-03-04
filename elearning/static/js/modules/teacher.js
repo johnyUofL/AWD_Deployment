@@ -1065,15 +1065,10 @@ export async function removeStudentFromCourse(enrollmentId, courseId, state) {
 // Manage Assignments functionality
 export async function manageCourseAssignments(courseId, state) {
     try {
-        // Fetch course details
         const course = await apiFetch(`http://127.0.0.1:8000/api/core/courses/${courseId}/`, {}, state.token);
-        
-        // Fetch assignments for this course
         const assignments = await apiFetch(`http://127.0.0.1:8000/api/core/assignments/?course=${courseId}`, {}, state.token);
-        
-        // Update the assignments tab content
+
         const assignmentsContainer = document.getElementById('teacher-assignments-container');
-        
         assignmentsContainer.innerHTML = `
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h4>Assignments for "${course.title}"</h4>
@@ -1081,7 +1076,6 @@ export async function manageCourseAssignments(courseId, state) {
                     <i class="bi bi-plus-circle"></i> Add Assignment
                 </button>
             </div>
-            
             ${assignments.length === 0 ? 
                 `<div class="alert alert-info">
                     <p>No assignments have been created for this course yet.</p>
@@ -1093,6 +1087,7 @@ export async function manageCourseAssignments(courseId, state) {
                                 <th>Title</th>
                                 <th>Due Date</th>
                                 <th>Points</th>
+                                <th>File</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -1102,6 +1097,13 @@ export async function manageCourseAssignments(courseId, state) {
                                     <td>${assignment.title}</td>
                                     <td>${new Date(assignment.due_date).toLocaleString()}</td>
                                     <td>${assignment.total_points}</td>
+                                    <td>
+                                        ${assignment.file_path ? 
+                                            `<a href="${assignment.file_path}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-download"></i> Download
+                                            </a>` : 
+                                            'No file'}
+                                    </td>
                                     <td>
                                         <div class="btn-group" role="group">
                                             <button class="btn btn-sm btn-outline-primary view-submissions-btn" data-id="${assignment.id}">
@@ -1122,27 +1124,25 @@ export async function manageCourseAssignments(courseId, state) {
                 </div>`
             }
         `;
-        
-        // Switch to the assignments tab
+
         document.getElementById('assignments-tab').click();
-        
-        // Add event listeners
+
         document.getElementById('add-assignment-btn').addEventListener('click', () => {
             showAddAssignmentModal(courseId, state);
         });
-        
+
         document.querySelectorAll('.view-submissions-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 viewAssignmentSubmissions(btn.getAttribute('data-id'), state);
             });
         });
-        
+
         document.querySelectorAll('.edit-assignment-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 editAssignment(btn.getAttribute('data-id'), state);
             });
         });
-        
+
         document.querySelectorAll('.delete-assignment-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 deleteAssignment(btn.getAttribute('data-id'), courseId, state);
@@ -1217,6 +1217,52 @@ export function showAddAssignmentModal(courseId, state) {
         this.remove();
     });
 }
+
+export async function createAssignment(courseId, modal, state) {
+    const title = document.getElementById('assignment-title').value;
+    const description = document.getElementById('assignment-description').value;
+    const dueDate = document.getElementById('assignment-due-date').value;
+    const totalPoints = document.getElementById('assignment-points').value;
+    const assignmentFile = document.getElementById('assignment-file').files[0];
+
+    if (!title || !description || !dueDate || !totalPoints) {
+        showToast('Please fill in all required fields', 'danger');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('title', title);
+    formData.append('description', description);
+    formData.append('due_date', dueDate);
+    formData.append('total_points', totalPoints);
+    formData.append('course', courseId);
+    if (assignmentFile) {
+        formData.append('file_path', assignmentFile);
+    }
+
+    // Log the FormData contents
+    console.log('Sending FormData:');
+    for (let [key, value] of formData.entries()) {
+        console.log(`${key}:`, value);
+    }
+
+    try {
+        const response = await apiFetch('http://127.0.0.1:8000/api/core/assignments/', {
+            method: 'POST',
+            body: formData,
+            headers: {}
+        }, state.token);
+
+        console.log('Assignment created:', response);
+        modal.hide();
+        showToast('Assignment created successfully!', 'success');
+        manageCourseAssignments(courseId, state);
+    } catch (error) {
+        console.error('Error creating assignment:', error);
+        showToast('Failed to create assignment: ' + error.message, 'danger');
+    }
+}
+
 
 // Toggle Course Status functionality
 export async function toggleCourseStatus(courseId, currentStatus, state) {
