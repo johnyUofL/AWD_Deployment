@@ -1107,7 +1107,7 @@ export async function manageCourseAssignments(courseId, state) {
                                     <td>
                                         <div class="btn-group" role="group">
                                             <button class="btn btn-sm btn-outline-primary view-submissions-btn" data-id="${assignment.id}">
-                                                <i class="bi bi-check-circle"></i> Check Submissions
+                                                <i class="bi bi-check-circle"></i> Submissions
                                             </button>
                                             <button class="btn btn-sm btn-outline-secondary edit-assignment-btn" data-id="${assignment.id}">
                                                 <i class="bi bi-pencil"></i>
@@ -1225,37 +1225,36 @@ export async function createAssignment(courseId, modal, state) {
     const totalPoints = document.getElementById('assignment-points').value;
     const assignmentFile = document.getElementById('assignment-file').files[0];
 
+    // Validate required fields
     if (!title || !description || !dueDate || !totalPoints) {
         showToast('Please fill in all required fields', 'danger');
         return;
     }
 
+    // Construct FormData
     const formData = new FormData();
     formData.append('title', title);
     formData.append('description', description);
     formData.append('due_date', dueDate);
     formData.append('total_points', totalPoints);
-    formData.append('course', courseId);
+    formData.append('course', courseId); // Link to the course
+    
     if (assignmentFile) {
-        formData.append('file_path', assignmentFile);
-    }
-
-    // Log the FormData contents
-    console.log('Sending FormData:');
-    for (let [key, value] of formData.entries()) {
-        console.log(`${key}:`, value);
+        formData.append('file_path', assignmentFile); // Add file if provided
     }
 
     try {
         const response = await apiFetch('http://127.0.0.1:8000/api/core/assignments/', {
             method: 'POST',
             body: formData,
-            headers: {}
+            headers: {} // Let browser set Content-Type for multipart/form-data
         }, state.token);
 
         console.log('Assignment created:', response);
         modal.hide();
         showToast('Assignment created successfully!', 'success');
+
+        // Refresh the assignments view
         manageCourseAssignments(courseId, state);
     } catch (error) {
         console.error('Error creating assignment:', error);
