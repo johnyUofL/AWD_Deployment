@@ -85,15 +85,29 @@ async function fetchCourseStructure(courseId, state) {
 }
 
 // Fetch material details by ID
-async function fetchMaterialDetails(materialId, state) {
+async function fetchMaterialDetails(materialId, materialType, state) {
     try {
-        console.log(`Fetching material details for ID: ${materialId}`);
-        const material = await apiFetch(`http://127.0.0.1:8000/api/core/materials/${materialId}/`, {}, state.token);
+        let endpoint;
+        if (materialType === 'assignment') {
+            endpoint = `http://127.0.0.1:8000/api/core/assignments/${materialId}/`;
+        } else {
+            endpoint = `http://127.0.0.1:8000/api/core/materials/${materialId}/`;
+        }
+        
+        const material = await apiFetch(endpoint, {}, state.token);
         console.log(`Material details for ID ${materialId}:`, material);
         return material;
     } catch (error) {
-        console.error(`Error fetching material ${materialId}:`, error);
-        return null;
+        console.error(`Error fetching ${materialType} ${materialId}:`, error);
+        // Return a placeholder object instead of throwing an error
+        return {
+            id: materialId,
+            title: "Content Not Found",
+            description: `The ${materialType} you're trying to access is no longer available.`,
+            file_path: "",
+            file_type: materialType,
+            is_missing: true // Flag to identify missing content
+        };
     }
 }
 
@@ -152,7 +166,7 @@ export async function renderCourseContentPage(courseId, state) {
 
         // Fetch all materials in parallel
         const materialPromises = structure.flatMap(section => 
-            section.items.map(item => fetchMaterialDetails(item.id, state))
+            section.items.map(item => fetchMaterialDetails(item.id, item.type, state))
         );
         const materials = await Promise.all(materialPromises);
         const materialMap = new Map(materials.filter(m => m).map(m => [m.id, m]));
@@ -508,16 +522,19 @@ function showAssignmentSubmissionModal(assignmentId, state) {
                         <div class="mb-3">
                             <label for="submission-file" class="form-label">Upload your assignment file</label>
                             <input class="form-control" type="file" id="submission-file" required>
+                            <div class="form-text">Accepted file types: PDF, DOC, DOCX, ZIP, etc.</div>
                         </div>
                         <div class="mb-3">
                             <label for="submission-comments" class="form-label">Comments (optional)</label>
-                            <textarea class="form-control" id="submission-comments" rows="3"></textarea>
+                            <textarea class="form-control" id="submission-comments" rows="3" placeholder="Add any comments about your submission here..."></textarea>
                         </div>
                     </form>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="submit-assignment-btn">Submit</button>
+                    <button type="button" class="btn btn-primary" id="submit-assignment-btn-modal">
+                        <i class="bi bi-upload"></i> Submit
+                    </button>
                 </div>
             </div>
         </div>
@@ -531,7 +548,7 @@ function showAssignmentSubmissionModal(assignmentId, state) {
     modal.show();
     
     // Handle form submission
-    document.getElementById('submit-assignment-btn').addEventListener('click', async () => {
+    document.getElementById('submit-assignment-btn-modal').addEventListener('click', async () => {
         const fileInput = document.getElementById('submission-file');
         const comments = document.getElementById('submission-comments').value;
         
@@ -547,6 +564,10 @@ function showAssignmentSubmissionModal(assignmentId, state) {
         formData.append('comments', comments);
         
         try {
+            // Show loading indicator
+            document.getElementById('submit-assignment-btn-modal').innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Uploading...';
+            document.getElementById('submit-assignment-btn-modal').disabled = true;
+            
             // Upload the file
             const response = await fetch('http://127.0.0.1:8000/api/core/submissions/', {
                 method: 'POST',
@@ -557,7 +578,8 @@ function showAssignmentSubmissionModal(assignmentId, state) {
             });
             
             if (!response.ok) {
-                throw new Error('Failed to submit assignment');
+                const errorData = await response.json();
+                throw new Error(errorData.detail || 'Failed to submit assignment');
             }
             
             // Close the modal
@@ -579,6 +601,10 @@ function showAssignmentSubmissionModal(assignmentId, state) {
         } catch (error) {
             console.error('Error submitting assignment:', error);
             showToast('Failed to submit assignment: ' + error.message, 'danger');
+            
+            // Reset button
+            document.getElementById('submit-assignment-btn-modal').innerHTML = '<i class="bi bi-upload"></i> Submit';
+            document.getElementById('submit-assignment-btn-modal').disabled = false;
         }
     });
     
