@@ -1107,7 +1107,7 @@ export async function manageCourseAssignments(courseId, state) {
                                     <td>
                                         <div class="btn-group" role="group">
                                             <button class="btn btn-sm btn-outline-primary view-submissions-btn" data-id="${assignment.id}">
-                                                <i class="bi bi-check-circle"></i> Submissions
+                                                <i class="bi bi-check-circle"></i> Check Submissions
                                             </button>
                                             <button class="btn btn-sm btn-outline-secondary edit-assignment-btn" data-id="${assignment.id}">
                                                 <i class="bi bi-pencil"></i>
