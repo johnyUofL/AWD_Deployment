@@ -3726,7 +3726,6 @@ async function startChat(userId, state) {
                 buttonElement.disabled = true;
             }
             
-            showToast(`Chat closed: ${event.reason || 'Unknown reason'}`, 'warning');
         };
 
         socket.onerror = (error) => {
