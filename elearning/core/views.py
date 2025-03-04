@@ -64,13 +64,23 @@ class AssignmentViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         user = self.request.user
+        queryset = Assignment.objects.all()
+        
+        # Apply course filter if provided
+        course_id = self.request.query_params.get('course')
+        if course_id:
+            queryset = queryset.filter(course_id=course_id)
+        
+        # Apply user-specific filters
         if user.user_type == 'teacher':
-            return Assignment.objects.filter(course__teacher=user)
+            queryset = queryset.filter(course__teacher=user)
         else:
-            return Assignment.objects.filter(
+            queryset = queryset.filter(
                 course__enrollments__student=user,
                 course__enrollments__is_active=True
             ).distinct()
+        
+        return queryset
     
     def perform_create(self, serializer):
         print(f"Request data: {self.request.data}")  # Log incoming data
