@@ -6,13 +6,16 @@ export function renderTeacherDashboard(state) {
     const content = document.getElementById('content');
     content.innerHTML = `
         <div class="container mt-4">
-            <div class="row mb-4">
+            <div class="row mb-4 align-items-center">
                 <div class="col">
                     <h1>Teacher Dashboard</h1>
                 </div>
                 <div class="col-auto">
-                    <button id="create-course-btn" class="btn btn-primary">
+                    <button id="create-course-btn" class="btn btn-primary me-2">
                         <i class="bi bi-plus-circle"></i> Create New Course
+                    </button>
+                    <button id="view-users-btn" class="btn btn-outline-primary" title="View Users">
+                        <i class="bi bi-person-lines-fill"></i> Users
                     </button>
                 </div>
             </div>
@@ -58,11 +61,11 @@ export function renderTeacherDashboard(state) {
             </div>
         </div>
     `;
-
+    
     // Add event listeners
     document.getElementById('create-course-btn').addEventListener('click', () => showCreateCourseModal(state));
+    document.getElementById('view-users-btn').addEventListener('click', () => viewUsers(state));
     
-    // Load teacher's courses
     fetchTeacherCourses(state);
 }
 
@@ -3305,4 +3308,300 @@ function showGradingModal(submissionId, studentName, totalPoints, state) {
     gradingModal.addEventListener('hidden.bs.modal', function() {
         this.remove();
     });
+}
+
+async function viewUsers(state) {
+    try {
+        // Use the correct endpoint for users
+        const users = await apiFetch(`http://127.0.0.1:8000/userauths/api/users/`, {}, state.token);
+        
+        const modalHtml = `
+            <div class="modal fade" id="usersModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-xl">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">User Directory</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <div class="input-group">
+                                    <input type="text" class="form-control" id="user-search-input" placeholder="Search by name, email, or username...">
+                                    <button class="btn btn-outline-primary" id="user-search-btn">
+                                        <i class="bi bi-search"></i> Search
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="users-list" class="row">
+                                ${users.length > 0 ? users.map(user => `
+                                    <div class="col-md-4 mb-3">
+                                        <div class="card h-100">
+                                            <div class="card-body">
+                                                <div class="d-flex align-items-center mb-3">
+                                                    <img src="${user.profile_picture_path || 'https://via.placeholder.com/50?text=User'}" 
+                                                         class="rounded-circle me-3" style="width: 50px; height: 50px; object-fit: cover;">
+                                                    <div>
+                                                        <h6 class="mb-0">${user.first_name || ''} ${user.last_name || ''}</h6>
+                                                        <small class="text-muted">@${user.username}</small>
+                                                    </div>
+                                                </div>
+                                                <div class="d-flex justify-content-between">
+                                                    <button class="btn btn-sm btn-outline-primary open-bio-btn" data-id="${user.id}">
+                                                        <i class="bi bi-info-circle"></i> View Profile
+                                                    </button>
+                                                    <button class="btn btn-sm btn-outline-success start-chat-btn" data-id="${user.id}">
+                                                        <i class="bi bi-chat"></i> Start Chat
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `).join('') : `
+                                    <div class="col-12">
+                                        <div class="alert alert-info">No users found</div>
+                                    </div>
+                                `}
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" id="close-users-modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        const modalElement = document.getElementById('usersModal');
+        const modal = new bootstrap.Modal(modalElement);
+        
+        // Use a custom close button instead of data-bs-dismiss
+        document.getElementById('close-users-modal').addEventListener('click', () => {
+            // First move focus outside the modal
+            document.getElementById('view-users-btn').focus();
+            // Small delay to ensure focus has moved
+            setTimeout(() => {
+                modal.hide();
+            }, 10);
+        });
+        
+        // Handle the close button in the header
+        document.querySelector('#usersModal .btn-close').addEventListener('click', () => {
+            // First move focus outside the modal
+            document.getElementById('view-users-btn').focus();
+            // Small delay to ensure focus has moved
+            setTimeout(() => {
+                modal.hide();
+            }, 10);
+        });
+        
+        // Clean up modal when hidden
+        modalElement.addEventListener('hidden.bs.modal', function() {
+            this.remove();
+        });
+        
+        modal.show();
+
+        // Add search functionality
+        document.getElementById('user-search-btn').addEventListener('click', () => {
+            const searchTerm = document.getElementById('user-search-input').value.trim();
+            searchUsers(searchTerm, state);
+        });
+        
+        document.getElementById('user-search-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const searchTerm = document.getElementById('user-search-input').value.trim();
+                searchUsers(searchTerm, state);
+            }
+        });
+
+        // Add event listeners for bio and chat buttons
+        document.querySelectorAll('.open-bio-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const userId = btn.getAttribute('data-id');
+                viewUserBio(userId, state);
+            });
+        });
+        
+        document.querySelectorAll('.start-chat-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const userId = btn.getAttribute('data-id');
+                startChat(userId, state);
+            });
+        });
+    } catch (error) {
+        console.error('Error fetching users:', error);
+        showToast('Failed to load users: ' + error.message, 'danger');
+    }
+}
+
+async function searchUsers(searchTerm, state) {
+    try {
+        // Filter users client-side since the API might not support search parameter
+        const allUsers = await apiFetch(`http://127.0.0.1:8000/userauths/api/users/`, {}, state.token);
+        
+        // Client-side filtering
+        const users = allUsers.filter(user => {
+            const searchLower = searchTerm.toLowerCase();
+            return (
+                (user.first_name && user.first_name.toLowerCase().includes(searchLower)) ||
+                (user.last_name && user.last_name.toLowerCase().includes(searchLower)) ||
+                (user.username && user.username.toLowerCase().includes(searchLower)) ||
+                (user.email && user.email.toLowerCase().includes(searchLower))
+            );
+        });
+        
+        const usersList = document.getElementById('users-list');
+        usersList.innerHTML = users.length > 0 ? users.map(user => `
+            <div class="col-md-4 mb-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center mb-3">
+                            <img src="${user.profile_picture_path || 'https://via.placeholder.com/50?text=User'}" 
+                                 class="rounded-circle me-3" style="width: 50px; height: 50px; object-fit: cover;">
+                            <div>
+                                <h6 class="mb-0">${user.first_name || ''} ${user.last_name || ''}</h6>
+                                <small class="text-muted">@${user.username}</small>
+                            </div>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <button class="btn btn-sm btn-outline-primary open-bio-btn" data-id="${user.id}">
+                                <i class="bi bi-info-circle"></i> View Profile
+                            </button>
+                            <button class="btn btn-sm btn-outline-success start-chat-btn" data-id="${user.id}">
+                                <i class="bi bi-chat"></i> Start Chat
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `).join('') : `
+            <div class="col-12">
+                <div class="alert alert-info">No users found matching "${searchTerm}"</div>
+            </div>
+        `;
+
+        // Re-attach event listeners to the new buttons
+        document.querySelectorAll('.open-bio-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const userId = btn.getAttribute('data-id');
+                viewUserBio(userId, state);
+            });
+        });
+        
+        document.querySelectorAll('.start-chat-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const userId = btn.getAttribute('data-id');
+                startChat(userId, state);
+            });
+        });
+    } catch (error) {
+        console.error('Error searching users:', error);
+        showToast('Failed to search users: ' + error.message, 'danger');
+    }
+}
+
+async function viewUserBio(userId, state) {
+    try {
+        const user = await apiFetch(`http://127.0.0.1:8000/userauths/api/users/${userId}/`, {}, state.token);
+        
+        const bioModalHtml = `
+            <div class="modal fade" id="userBioModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">User Profile</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="text-center mb-4">
+                                <img src="${user.profile_picture_path || 'https://via.placeholder.com/150?text=User'}" 
+                                     class="rounded-circle mb-3" style="width: 150px; height: 150px; object-fit: cover;">
+                                <h4>${user.first_name || ''} ${user.last_name || ''}</h4>
+                                <p class="text-muted">@${user.username}</p>
+                            </div>
+                            
+                            <div class="card mb-3">
+                                <div class="card-header">Contact Information</div>
+                                <div class="card-body">
+                                    <p><strong>Email:</strong> ${user.email || 'Not provided'}</p>
+                                    <p><strong>Role:</strong> ${user.user_type === 'teacher' ? 'Teacher' : 'Student'}</p>
+                                </div>
+                            </div>
+                            
+                            <div class="card mb-3">
+                                <div class="card-header">Bio</div>
+                                <div class="card-body">
+                                    ${user.bio ? `<p>${user.bio}</p>` : '<p class="text-muted">No bio provided</p>'}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" id="close-bio-modal">Close</button>
+                            <button type="button" class="btn btn-success start-chat-modal-btn" data-id="${user.id}">
+                                <i class="bi bi-chat"></i> Start Chat
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        document.body.insertAdjacentHTML('beforeend', bioModalHtml);
+        const bioModalElement = document.getElementById('userBioModal');
+        const bioModal = new bootstrap.Modal(bioModalElement);
+        
+        // Use a custom close button instead of data-bs-dismiss
+        document.getElementById('close-bio-modal').addEventListener('click', () => {
+            // First find the button that opened this modal and focus it
+            const openBioBtn = document.querySelector(`.open-bio-btn[data-id="${userId}"]`);
+            if (openBioBtn) {
+                openBioBtn.focus();
+            } else {
+                document.getElementById('view-users-btn').focus();
+            }
+            
+            // Small delay to ensure focus has moved
+            setTimeout(() => {
+                bioModal.hide();
+            }, 10);
+        });
+        
+        // Handle the close button in the header
+        document.querySelector('#userBioModal .btn-close').addEventListener('click', () => {
+            // First find the button that opened this modal and focus it
+            const openBioBtn = document.querySelector(`.open-bio-btn[data-id="${userId}"]`);
+            if (openBioBtn) {
+                openBioBtn.focus();
+            } else {
+                document.getElementById('view-users-btn').focus();
+            }
+            
+            // Small delay to ensure focus has moved
+            setTimeout(() => {
+                bioModal.hide();
+            }, 10);
+        });
+        
+        // Clean up modal when hidden
+        bioModalElement.addEventListener('hidden.bs.modal', function() {
+            this.remove();
+        });
+        
+        bioModal.show();
+
+        // Add event listener for the chat button in the modal
+        document.querySelector('.start-chat-modal-btn').addEventListener('click', () => {
+            startChat(userId, state);
+        });
+    } catch (error) {
+        console.error('Error fetching user bio:', error);
+        showToast('Failed to load user profile: ' + error.message, 'danger');
+    }
+}
+
+function startChat(userId, state) {
+    // This is a placeholder for future chat functionality
+    showToast('Chat functionality will be implemented in a future update', 'info');
+    console.log(`Starting chat with user ID: ${userId}`);
 }
