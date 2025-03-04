@@ -502,138 +502,299 @@ export async function renderCourseContentPage(courseId, state) {
 }
 
 function showAssignmentSubmissionModal(assignmentId, state) {
-    // Create modal element
-    const modalElement = document.createElement('div');
-    modalElement.className = 'modal fade';
-    modalElement.id = 'assignmentSubmissionModal';
-    modalElement.tabIndex = '-1';
-    modalElement.setAttribute('aria-labelledby', 'assignmentSubmissionModalLabel');
-    modalElement.setAttribute('aria-hidden', 'true');
-    
-    modalElement.innerHTML = `
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="assignmentSubmissionModalLabel">Submit Assignment</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="assignment-submission-form">
-                        <div class="mb-3">
-                            <label for="submission-file" class="form-label">Upload your assignment file</label>
-                            <input class="form-control" type="file" id="submission-file" required>
-                            <div class="form-text">Accepted file types: PDF, DOC, DOCX, ZIP, etc.</div>
+    // First, check if the student has already submitted this assignment
+    apiFetch(`http://127.0.0.1:8000/api/core/submissions/?assignment=${assignmentId}`, {}, state.token)
+        .then(submissions => {
+            const userSubmission = submissions.find(s => s.student_id === parseInt(state.userId));
+            
+            // Create modal element
+            const modalElement = document.createElement('div');
+            modalElement.className = 'modal fade';
+            modalElement.id = 'assignmentSubmissionModal';
+            modalElement.tabIndex = '-1';
+            modalElement.setAttribute('aria-labelledby', 'assignmentSubmissionModalLabel');
+            modalElement.setAttribute('aria-hidden', 'true');
+            
+            if (userSubmission) {
+                // Student has already submitted
+                modalElement.innerHTML = `
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="assignmentSubmissionModalLabel">Assignment Submission</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="alert alert-success">
+                                    <h5>Your Submission</h5>
+                                    <p>${userSubmission.content || 'No text content provided.'}</p>
+                                    ${userSubmission.file_path ? `
+                                        <p><a href="${userSubmission.file_path}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-file-earmark"></i> View Submitted File
+                                        </a></p>
+                                    ` : ''}
+                                    <p class="mb-0"><small>Submitted on: ${new Date(userSubmission.submitted_at).toLocaleString()}</small></p>
+                                </div>
+                                ${userSubmission.grade ? `
+                                    <div class="alert alert-${userSubmission.grade >= 60 ? 'success' : 'warning'}">
+                                        <h5>Grade</h5>
+                                        <p><strong>${userSubmission.grade} / 100</strong></p>
+                                        ${userSubmission.feedback ? `<p><strong>Feedback:</strong> ${userSubmission.feedback}</p>` : ''}
+                                    </div>
+                                ` : '<div class="alert alert-info">Your submission is waiting to be graded.</div>'}
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            </div>
                         </div>
-                        <div class="mb-3">
-                            <label for="submission-comments" class="form-label">Comments (optional)</label>
-                            <textarea class="form-control" id="submission-comments" rows="3" placeholder="Add any comments about your submission here..."></textarea>
+                    </div>
+                `;
+            } else {
+                // Student has not submitted yet
+                modalElement.innerHTML = `
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="assignmentSubmissionModalLabel">Submit Assignment</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <form id="assignment-submission-form">
+                                    <div class="mb-3">
+                                        <label for="submission-file" class="form-label">Upload your assignment file</label>
+                                        <input class="form-control" type="file" id="submission-file" required>
+                                        <div class="form-text">Accepted file types: PDF, DOC, DOCX, ZIP, etc.</div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="submission-comments" class="form-label">Comments (optional)</label>
+                                        <textarea class="form-control" id="submission-comments" rows="3" placeholder="Add any comments about your submission here..."></textarea>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" class="btn btn-primary" id="submit-assignment-btn-modal">
+                                    <i class="bi bi-upload"></i> Submit
+                                </button>
+                            </div>
                         </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="submit-assignment-btn-modal">
-                        <i class="bi bi-upload"></i> Submit
-                    </button>
+                    </div>
+                `;
+            }
+            
+            document.body.appendChild(modalElement);
+            
+            // Initialize the Bootstrap modal
+            const modal = new bootstrap.Modal(modalElement);
+            modal.show();
+            
+            // Add event listener for submit button if this is a new submission
+            if (!userSubmission) {
+                document.getElementById('submit-assignment-btn-modal').addEventListener('click', async () => {
+                    const fileInput = document.getElementById('submission-file');
+                    const comments = document.getElementById('submission-comments').value;
+                    
+                    if (!fileInput.files || fileInput.files.length === 0) {
+                        showToast('Please select a file to upload', 'warning');
+                        return;
+                    }
+                    
+                    const file = fileInput.files[0];
+                    const formData = new FormData();
+                    formData.append('file_path', file);
+                    formData.append('assignment', assignmentId);
+                    formData.append('comments', comments || '');  // Make sure comments are included
+                    
+                    try {
+                        // Show loading indicator
+                        document.getElementById('submit-assignment-btn-modal').innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Uploading...';
+                        document.getElementById('submit-assignment-btn-modal').disabled = true;
+                        
+                        // Log the form data for debugging
+                        console.log('Submitting assignment with data:', {
+                            assignmentId,
+                            comments: comments || '',
+                            fileName: file.name,
+                            fileSize: file.size,
+                            fileType: file.type
+                        });
+                        
+                        // Submit the assignment
+                        const response = await fetch('http://127.0.0.1:8000/api/core/submissions/', {
+                            method: 'POST',
+                            headers: {
+                                'Authorization': `Bearer ${state.token}`
+                            },
+                            body: formData
+                        });
+                        
+                        if (!response.ok) {
+                            // Try to get detailed error information
+                            let errorText = '';
+                            try {
+                                const errorData = await response.json();
+                                console.error('Server error details:', errorData);
+                                errorText = JSON.stringify(errorData);
+                            } catch (e) {
+                                errorText = await response.text();
+                                console.error('Server error response:', errorText);
+                            }
+                            
+                            throw new Error(`Submission failed: ${response.status} - ${errorText}`);
+                        }
+                        
+                        const result = await response.json();
+                        console.log('Submission successful:', result);
+                        
+                        // Close the modal
+                        modal.hide();
+                        
+                        // Show success message
+                        showToast('Assignment submitted successfully!', 'success');
+                        
+                        // Remove the modal from DOM after hiding
+                        modalElement.addEventListener('hidden.bs.modal', function () {
+                            modalElement.remove();
+                        });
+                        
+                        // Refresh the page to show updated submission status
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1500);
+                        
+                    } catch (error) {
+                        console.error('Error submitting assignment:', error);
+                        showToast('Failed to submit assignment: ' + error.message, 'danger');
+                        
+                        // Reset button
+                        document.getElementById('submit-assignment-btn-modal').innerHTML = '<i class="bi bi-upload"></i> Submit';
+                        document.getElementById('submit-assignment-btn-modal').disabled = false;
+                    }
+                });
+            }
+            
+            // Remove the modal from DOM when it's closed
+            modalElement.addEventListener('hidden.bs.modal', function () {
+                modalElement.remove();
+            });
+        })
+        .catch(error => {
+            console.error('Error checking submission status:', error);
+            showToast('Failed to check submission status: ' + error.message, 'danger');
+        });
+}
+
+function showGradingModal(submissionId, studentName, totalPoints, state) {
+    const modalHtml = `
+        <div class="modal fade" id="gradingModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Grade Submission - ${studentName}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="grading-form">
+                            <div class="mb-3">
+                                <label for="grade" class="form-label">Grade (out of ${totalPoints})</label>
+                                <input type="number" class="form-control" id="grade" min="0" max="${totalPoints}" step="0.1" required>
+                                <small class="form-text text-muted">Enter a score between 0 and ${totalPoints}</small>
+                            </div>
+                            <div class="mb-3">
+                                <label for="feedback" class="form-label">Feedback (optional)</label>
+                                <textarea class="form-control" id="feedback" rows="3" placeholder="Provide feedback to the student..."></textarea>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" id="submit-grade-btn">Submit Grade</button>
+                    </div>
                 </div>
             </div>
         </div>
     `;
     
-    // Add modal to body
-    document.body.appendChild(modalElement);
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
     
-    // Initialize Bootstrap modal
-    const modal = new bootstrap.Modal(modalElement);
+    // Show modal
+    const gradingModal = document.getElementById('gradingModal');
+    const modal = new bootstrap.Modal(gradingModal);
     modal.show();
     
-    // Handle form submission
-    document.getElementById('submit-assignment-btn-modal').addEventListener('click', async () => {
-        const fileInput = document.getElementById('submission-file');
-        const comments = document.getElementById('submission-comments').value;
+    // Add event listener for submit button
+    document.getElementById('submit-grade-btn').addEventListener('click', async () => {
+        const grade = document.getElementById('grade').value;
+        const feedback = document.getElementById('feedback').value;
         
-        if (!fileInput.files || fileInput.files.length === 0) {
-            showToast('Please select a file to upload', 'warning');
+        if (!grade) {
+            showToast('Please enter a grade', 'warning');
             return;
         }
         
-        const file = fileInput.files[0];
-        const formData = new FormData();
-        formData.append('file_path', file);
-        formData.append('assignment', assignmentId);
-        formData.append('comments', comments || '');  // Make sure comments are included
+        const gradeValue = parseFloat(grade);
+        if (isNaN(gradeValue) || gradeValue < 0 || gradeValue > totalPoints) {
+            showToast(`Grade must be between 0 and ${totalPoints}`, 'warning');
+            return;
+        }
         
         try {
-            // Show loading indicator
-            document.getElementById('submit-assignment-btn-modal').innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Uploading...';
-            document.getElementById('submit-assignment-btn-modal').disabled = true;
+            // Disable button and show loading state
+            const submitBtn = document.getElementById('submit-grade-btn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Submitting...';
             
-            // Log the form data for debugging
-            console.log('Submitting assignment with data:', {
-                assignmentId,
-                comments: comments || '',
-                fileName: file.name,
-                fileSize: file.size,
-                fileType: file.type
-            });
-            
-            // Submit the assignment
-            const response = await fetch('http://127.0.0.1:8000/api/core/submissions/', {
+            // Submit the grade
+            await apiFetch(`http://127.0.0.1:8000/api/core/submissions/${submissionId}/grade/`, {
                 method: 'POST',
+                body: JSON.stringify({
+                    score: gradeValue,
+                    feedback: feedback
+                }),
                 headers: {
-                    'Authorization': `Bearer ${state.token}`
-                },
-                body: formData
-            });
-            
-            if (!response.ok) {
-                // Try to get detailed error information
-                let errorText = '';
-                try {
-                    const errorData = await response.json();
-                    console.error('Server error details:', errorData);
-                    errorText = JSON.stringify(errorData);
-                } catch (e) {
-                    errorText = await response.text();
-                    console.error('Server error response:', errorText);
+                    'Content-Type': 'application/json'
                 }
-                
-                throw new Error(`Submission failed: ${response.status} - ${errorText}`);
-            }
+            }, state.token);
             
-            const result = await response.json();
-            console.log('Submission successful:', result);
-            
-            // Close the modal
+            showToast('Grade submitted successfully!', 'success');
             modal.hide();
             
-            // Show success message
-            showToast('Assignment submitted successfully!', 'success');
-            
-            // Remove the modal from DOM after hiding
-            modalElement.addEventListener('hidden.bs.modal', function () {
-                modalElement.remove();
-            });
-            
-            // Refresh the page to show updated submission status
-            setTimeout(() => {
-                window.location.reload();
-            }, 1500);
-            
+            // Refresh the submissions view
+            const assignmentId = await getAssignmentIdFromSubmission(submissionId, state);
+            if (assignmentId) {
+                viewAssignmentSubmissions(assignmentId, state);
+            } else {
+                // Fallback to page reload if we can't get the assignment ID
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            }
         } catch (error) {
-            console.error('Error submitting assignment:', error);
-            showToast('Failed to submit assignment: ' + error.message, 'danger');
+            console.error('Error submitting grade:', error);
+            showToast('Failed to submit grade: ' + error.message, 'danger');
             
-            // Reset button
-            document.getElementById('submit-assignment-btn-modal').innerHTML = '<i class="bi bi-upload"></i> Submit';
-            document.getElementById('submit-assignment-btn-modal').disabled = false;
+            // Reset button state
+            const submitBtn = document.getElementById('submit-grade-btn');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = 'Submit Grade';
         }
     });
     
-    // Remove the modal from DOM when it's closed
-    modalElement.addEventListener('hidden.bs.modal', function () {
-        modalElement.remove();
+    // Cleanup when modal is hidden
+    gradingModal.addEventListener('hidden.bs.modal', function() {
+        this.remove();
     });
+}
+
+// Helper function to get assignment ID from submission ID
+async function getAssignmentIdFromSubmission(submissionId, state) {
+    try {
+        const submission = await apiFetch(`http://127.0.0.1:8000/api/core/submissions/${submissionId}/`, {}, state.token);
+        return submission.assignment;
+    } catch (error) {
+        console.error('Error fetching submission details:', error);
+        return null;
+    }
 }
 
 export default { renderCourseContentPage };

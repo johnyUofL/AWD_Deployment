@@ -1087,7 +1087,7 @@ export async function manageCourseAssignments(courseId, state) {
                                 <th>Title</th>
                                 <th>Due Date</th>
                                 <th>Points</th>
-                                <th>File</th>
+                                <th>Status</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -1095,24 +1095,22 @@ export async function manageCourseAssignments(courseId, state) {
                             ${assignments.map(assignment => `
                                 <tr>
                                     <td>${assignment.title}</td>
-                                    <td>${new Date(assignment.due_date).toLocaleString()}</td>
+                                    <td>${new Date(assignment.due_date).toLocaleDateString()}</td>
                                     <td>${assignment.total_points}</td>
                                     <td>
-                                        ${assignment.file_path ? 
-                                            `<a href="${assignment.file_path}" target="_blank" class="btn btn-sm btn-outline-primary">
-                                                <i class="bi bi-download"></i> Download
-                                            </a>` : 
-                                            'No file'}
+                                        ${new Date(assignment.due_date) < new Date() ? 
+                                            '<span class="badge bg-danger">Past Due</span>' : 
+                                            '<span class="badge bg-success">Active</span>'}
                                     </td>
                                     <td>
                                         <div class="btn-group" role="group">
-                                            <button class="btn btn-sm btn-outline-primary view-submissions-btn" data-id="${assignment.id}">
-                                                <i class="bi bi-check-circle"></i> Submissions
+                                            <button class="btn btn-sm btn-outline-primary view-assignment" data-id="${assignment.id}">
+                                                <i class="bi bi-eye"></i> View
                                             </button>
-                                            <button class="btn btn-sm btn-outline-secondary edit-assignment-btn" data-id="${assignment.id}">
-                                                <i class="bi bi-pencil"></i>
+                                            <button class="btn btn-sm btn-outline-success view-submissions" data-id="${assignment.id}">
+                                                <i class="bi bi-list-check"></i> Submissions
                                             </button>
-                                            <button class="btn btn-sm btn-outline-danger delete-assignment-btn" data-id="${assignment.id}">
+                                            <button class="btn btn-sm btn-outline-danger delete-assignment" data-id="${assignment.id}">
                                                 <i class="bi bi-trash"></i>
                                             </button>
                                         </div>
@@ -1131,21 +1129,17 @@ export async function manageCourseAssignments(courseId, state) {
             showAddAssignmentModal(courseId, state);
         });
 
-        document.querySelectorAll('.view-submissions-btn').forEach(btn => {
+        document.querySelectorAll('.view-submissions').forEach(btn => {
             btn.addEventListener('click', () => {
-                viewAssignmentSubmissions(btn.getAttribute('data-id'), state);
+                const assignmentId = btn.getAttribute('data-id');
+                viewAssignmentSubmissions(assignmentId, state);
             });
         });
 
-        document.querySelectorAll('.edit-assignment-btn').forEach(btn => {
+        document.querySelectorAll('.delete-assignment').forEach(btn => {
             btn.addEventListener('click', () => {
-                editAssignment(btn.getAttribute('data-id'), state);
-            });
-        });
-
-        document.querySelectorAll('.delete-assignment-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                deleteAssignment(btn.getAttribute('data-id'), courseId, state);
+                const assignmentId = btn.getAttribute('data-id');
+                deleteAssignment(assignmentId, state);
             });
         });
     } catch (error) {
@@ -3122,4 +3116,193 @@ async function saveCourseStructure(courseId, state) {
         console.error('Error saving course structure:', error);
         showToast('Failed to save course structure: ' + error.message, 'danger');
     }
+}
+
+// Add this function to view all submissions for an assignment
+export async function viewAssignmentSubmissions(assignmentId, state) {
+    try {
+        const assignment = await apiFetch(`http://127.0.0.1:8000/api/core/assignments/${assignmentId}/`, {}, state.token);
+        const submissions = await apiFetch(`http://127.0.0.1:8000/api/core/submissions/?assignment=${assignmentId}`, {}, state.token);
+        
+        // Create modal for viewing submissions
+        const modalHtml = `
+            <div class="modal fade" id="submissionsModal" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-xl">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Submissions for: ${assignment.title}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            ${submissions.length > 0 ? `
+                                <div class="table-responsive">
+                                    <table class="table table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>Student</th>
+                                                <th>Submission Date</th>
+                                                <th>Status</th>
+                                                <th>File</th>
+                                                <th>Grade</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${submissions.map(submission => `
+                                                <tr>
+                                                    <td>${submission.student_name || 'Student'}</td>
+                                                    <td>${new Date(submission.submitted_at).toLocaleString()}</td>
+                                                    <td>
+                                                        ${new Date(submission.submitted_at) > new Date(assignment.due_date) ? 
+                                                            '<span class="badge bg-warning">Late</span>' : 
+                                                            '<span class="badge bg-success">On Time</span>'}
+                                                    </td>
+                                                    <td>
+                                                        ${submission.file_path ? 
+                                                            `<a href="${submission.file_path}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                                                <i class="bi bi-download"></i> Download
+                                                            </a>` : 
+                                                            'No file'}
+                                                    </td>
+                                                    <td>
+                                                        ${submission.grade ? 
+                                                            `<span class="badge bg-${submission.grade >= assignment.total_points * 0.6 ? 'success' : 'warning'}">
+                                                                ${submission.grade}/${assignment.total_points}
+                                                            </span>` : 
+                                                            '<span class="badge bg-secondary">Not Graded</span>'}
+                                                    </td>
+                                                    <td>
+                                                        <button class="btn btn-sm btn-primary grade-submission-btn" 
+                                                                data-submission-id="${submission.id}" 
+                                                                data-student-name="${submission.student_name || 'Student'}"
+                                                                ${submission.grade ? 'disabled' : ''}>
+                                                            ${submission.grade ? 'Graded' : 'Grade'}
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ` : `
+                                <div class="alert alert-info">No submissions yet for this assignment.</div>
+                            `}
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // Show modal
+        const submissionsModal = document.getElementById('submissionsModal');
+        const modal = new bootstrap.Modal(submissionsModal);
+        modal.show();
+        
+        // Add event listeners for grading buttons
+        document.querySelectorAll('.grade-submission-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const submissionId = btn.getAttribute('data-submission-id');
+                const studentName = btn.getAttribute('data-student-name');
+                showGradingModal(submissionId, studentName, assignment.total_points, state);
+            });
+        });
+        
+        // Cleanup when modal is hidden
+        submissionsModal.addEventListener('hidden.bs.modal', function() {
+            this.remove();
+        });
+    } catch (error) {
+        console.error('Error fetching submissions:', error);
+        showToast('Failed to load submissions: ' + error.message, 'danger');
+    }
+}
+
+// Add this function to show the grading modal
+function showGradingModal(submissionId, studentName, totalPoints, state) {
+    const modalHtml = `
+        <div class="modal fade" id="gradingModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Grade Submission - ${studentName}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="grading-form">
+                            <div class="mb-3">
+                                <label for="grade" class="form-label">Grade (out of ${totalPoints})</label>
+                                <input type="number" class="form-control" id="grade" min="0" max="${totalPoints}" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="feedback" class="form-label">Feedback (optional)</label>
+                                <textarea class="form-control" id="feedback" rows="3"></textarea>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" id="submit-grade-btn">Submit Grade</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // Show modal
+    const gradingModal = document.getElementById('gradingModal');
+    const modal = new bootstrap.Modal(gradingModal);
+    modal.show();
+    
+    // Add event listener for submit button
+    document.getElementById('submit-grade-btn').addEventListener('click', async () => {
+        const grade = document.getElementById('grade').value;
+        const feedback = document.getElementById('feedback').value;
+        
+        if (!grade) {
+            showToast('Please enter a grade', 'warning');
+            return;
+        }
+        
+        if (parseFloat(grade) < 0 || parseFloat(grade) > totalPoints) {
+            showToast(`Grade must be between 0 and ${totalPoints}`, 'warning');
+            return;
+        }
+        
+        try {
+            // Submit the grade
+            await apiFetch(`http://127.0.0.1:8000/api/core/submissions/${submissionId}/grade/`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    grade: parseFloat(grade),
+                    feedback: feedback
+                }),
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            }, state.token);
+            
+            showToast('Grade submitted successfully!', 'success');
+            modal.hide();
+            
+            // Refresh the submissions view
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } catch (error) {
+            console.error('Error submitting grade:', error);
+            showToast('Failed to submit grade: ' + error.message, 'danger');
+        }
+    });
+    
+    // Cleanup when modal is hidden
+    gradingModal.addEventListener('hidden.bs.modal', function() {
+        this.remove();
+    });
 }

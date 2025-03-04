@@ -349,7 +349,12 @@ export async function viewAssignment(assignmentId) {
             modalContent += `
                 <div class="alert alert-success">
                     <h5>Your Submission</h5>
-                    <p>${userSubmission.content}</p>
+                    <p>${userSubmission.content || 'No text content provided.'}</p>
+                    ${userSubmission.file_path ? `
+                        <p><a href="${userSubmission.file_path}" target="_blank" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-file-earmark"></i> View Submitted File
+                        </a></p>
+                    ` : ''}
                     <p class="mb-0"><small>Submitted on: ${new Date(userSubmission.submitted_at).toLocaleString()}</small></p>
                 </div>
                 ${userSubmission.grade ? `
