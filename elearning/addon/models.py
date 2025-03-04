@@ -20,16 +20,13 @@ class ChatRoom(models.Model):
 
 class ChatMessage(models.Model):
     room = models.ForeignKey(ChatRoom, on_delete=models.CASCADE, related_name='messages')
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='chat_messages')
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
     content = models.TextField()
     sent_at = models.DateTimeField(auto_now_add=True)
     is_deleted = models.BooleanField(default=False)
     
-    class Meta:
-        ordering = ['sent_at']
-    
     def __str__(self):
-        return f"{self.user.username} - {self.sent_at.strftime('%Y-%m-%d %H:%M')}"
+        return f"{self.user.username}: {self.content[:20]}..."
 
 class ChatParticipant(models.Model):
     room = models.ForeignKey(ChatRoom, on_delete=models.CASCADE, related_name='participants')

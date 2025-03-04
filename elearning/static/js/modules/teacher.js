@@ -3600,273 +3600,327 @@ async function viewUserBio(userId, state) {
     }
 }
 
-// Keep only the new implementation with WebSocket functionality
+// Function to start a chat with a user
 async function startChat(userId, state) {
     try {
-        const targetUser = await apiFetch(`http://127.0.0.1:8000/userauths/api/users/${userId}/`, {}, state.token);
-        const modalHtml = `
-            <div class="modal fade" id="chatModal" tabindex="-1" aria-hidden="true">
-                <div class="modal-dialog modal-lg">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title">Chat with ${targetUser.first_name} ${targetUser.last_name} (@${targetUser.username})</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                        </div>
-                        <div class="modal-body">
-                            <div id="chat-messages" class="chat-messages border rounded p-3 mb-3">
-                                <div id="chat-status" class="text-center text-muted">Connecting...</div>
-                            </div>
-                            <form id="chat-form">
-                                <div class="input-group">
-                                    <input type="text" id="chat-input" class="form-control" placeholder="Type a message..." required>
-                                    <button type="submit" class="btn btn-primary">Send</button>
-                                </div>
-                            </form>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
-        const chatModal = new bootstrap.Modal(document.getElementById('chatModal'));
-        chatModal.show();
-
-        const style = document.createElement('style');
-        style.textContent = `
-            .chat-messages { height: 400px; overflow-y: auto; background: #f8f9fa; }
-            .message { margin-bottom: 15px; padding: 10px; border-radius: 8px; max-width: 70%; }
-            .message.sent { background: #007bff; color: white; margin-left: auto; }
-            .message.received { background: #e9ecef; color: black; margin-right: auto; }
-            .message .username { font-weight: bold; margin-right: 5px; }
-            .message .timestamp { font-size: 0.8em; opacity: 0.7; }
-            #chat-status { padding: 10px; }
-        `;
-        document.head.appendChild(style);
-
-        // Clean token without Bearer prefix
-        const cleanToken = state.token.replace('Bearer ', '');
-        
-        // Log connection attempt for debugging
         console.log(`Attempting to connect to WebSocket with target user ID: ${userId}`);
         
-        // Create WebSocket connection with properly encoded token
-        // Make sure the URL exactly matches the routing pattern
-        const socket = new WebSocket(`ws://127.0.0.1:8000/ws/chat/user/${userId}/?token=${encodeURIComponent(cleanToken)}`);
-        let currentUserId = parseInt(state.userId);
-
-        // Add connection timeout
-        const connectionTimeout = setTimeout(() => {
-            if (socket.readyState !== WebSocket.OPEN) {
-                console.error('WebSocket connection timeout');
-                showToast('Connection timeout. Please try again later.', 'danger');
-                const statusElement = document.getElementById('chat-status');
-                if (statusElement) {
-                    statusElement.textContent = 'Connection timeout';
-                }
-            }
-        }, 5000);
-
-        socket.onopen = async () => {
-            clearTimeout(connectionTimeout);
-            console.log('WebSocket connection established successfully');
-            const statusElement = document.getElementById('chat-status');
-            if (statusElement) {
-                statusElement.textContent = 'Connected';
-                await loadChatHistory(userId, state, currentUserId);
-                setTimeout(() => {
-                    if (statusElement && statusElement.parentNode) {
-                        statusElement.remove();
-                    }
-                }, 1000);
-            }
-        };
-
-        socket.onmessage = (event) => {
-            console.log('WebSocket message received:', event.data);
+        // Check if state is defined
+        if (!state) {
+            console.error('State is undefined');
+            throw new Error('Application state is not available');
+        }
+        
+        // Create a user object from the state properties if state.user doesn't exist
+        if (!state.user) {
+            console.log('Creating user object from state properties');
+            
+            // Get the current user information using the userId from state
             try {
-                const data = JSON.parse(event.data);
-                if (data.error) {
-                    showToast(`Chat error: ${data.error}`, 'danger');
-                    return;
-                }
-                
-                // Store the room ID in the chat status element for later use
-                if (data.room_id) {
-                    const statusElement = document.getElementById('chat-status');
-                    if (statusElement) {
-                        statusElement.dataset.roomId = data.room_id;
+                const currentUser = await apiFetch(`http://127.0.0.1:8000/userauths/api/users/${state.userId}/`, {}, state.token);
+                state.user = currentUser;
+                console.log('Current user fetched:', currentUser);
+            } catch (userError) {
+                // If we can't fetch the user, create a minimal user object from state
+                console.log('Using minimal user object from state properties');
+                state.user = {
+                    id: state.userId,
+                    username: state.username || 'user_' + state.userId,
+                    first_name: state.firstName || '',
+                    last_name: state.lastName || ''
+                };
+                console.log('Created user object:', state.user);
+            }
+        }
+        
+        // Get the target user's information
+        const targetUser = await apiFetch(`http://127.0.0.1:8000/userauths/api/users/${userId}/`, {}, state.token);
+        console.log('Target user:', targetUser);
+        
+        // First, check if a private chat room already exists between these users
+        console.log(`Loading chat history between users ${state.user.id} and ${userId}`);
+        const existingRooms = await apiFetch(`http://127.0.0.1:8000/api/addon/chat-rooms/`, {}, state.token);
+        
+        console.log(`Found ${existingRooms.length} chat rooms:`, existingRooms);
+        
+        // Look for a private chat room with both users
+        let chatRoom = null;
+        if (existingRooms.length > 0) {
+            // Display the first room structure for debugging
+            if (existingRooms[0]) {
+                console.log("First room structure:", JSON.stringify(existingRooms[0], null, 2));
+            }
+            
+            // Find a room that is private and has both users as participants
+            for (const room of existingRooms) {
+                if (room.is_private) {
+                    // Check if both users are participants
+                    const participants = await apiFetch(`http://127.0.0.1:8000/api/addon/participants/?room=${room.id}`, {}, state.token);
+                    const participantIds = participants.map(p => p.user.id);
+                    
+                    if (participantIds.includes(parseInt(state.user.id)) && participantIds.includes(parseInt(userId))) {
+                        chatRoom = room;
+                        console.log(`Found existing chat room: ${room.id}`);
+                        break;
                     }
                 }
-                
-                appendMessage(data.user, data.content, data.sent_at, parseInt(data.user_id) === currentUserId);
-            } catch (error) {
-                console.error('Error processing message:', error);
-                showToast('Error processing message', 'danger');
             }
-        };
-
-        socket.onclose = (event) => {
-            clearTimeout(connectionTimeout);
-            console.log(`WebSocket connection closed: Code ${event.code}, Reason: ${event.reason}`);
-            const statusElement = document.getElementById('chat-status');
-            if (statusElement) {
-                statusElement.textContent = `Disconnected (Code: ${event.code})`;
-            }
+        }
+        
+        // If no existing room, create a new one
+        if (!chatRoom) {
+            console.log("Creating new chat room");
             
-            const inputElement = document.getElementById('chat-input');
-            if (inputElement) {
-                inputElement.disabled = true;
-            }
+            // Create a new chat room
+            chatRoom = await apiFetch('http://127.0.0.1:8000/api/addon/chat-rooms/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    name: `Private Chat: ${state.user.username}-${targetUser.username}`,
+                    description: '',
+                    course_id: null,
+                    is_private: true
+                })
+            }, state.token);
             
-            const buttonElement = document.querySelector('#chat-form button');
-            if (buttonElement) {
-                buttonElement.disabled = true;
-            }
+            console.log("Chat room created successfully:", chatRoom);
             
-        };
-
-        socket.onerror = (error) => {
-            clearTimeout(connectionTimeout);
-            console.error('WebSocket error:', error);
-            showToast('Chat connection error. Please try again later.', 'danger');
-            const statusElement = document.getElementById('chat-status');
-            if (statusElement) {
-                statusElement.textContent = 'Connection error';
-            }
-        };
-
-        const chatForm = document.getElementById('chat-form');
-        chatForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            const input = document.getElementById('chat-input');
-            const message = input.value.trim();
-            if (message && socket.readyState === WebSocket.OPEN) {
-                console.log('Sending message:', message);
-                socket.send(JSON.stringify({ content: message }));
-                input.value = '';
-            } else if (socket.readyState !== WebSocket.OPEN) {
-                showToast('Cannot send message: Chat not connected', 'danger');
-            }
-        });
-
-        document.getElementById('chatModal').addEventListener('hidden.bs.modal', () => {
-            console.log('Chat modal closed, cleaning up resources');
-            socket.close();
-            document.getElementById('chatModal').remove();
-            style.remove();
-        });
+            // Add current user as participant
+            await apiFetch('http://127.0.0.1:8000/api/addon/participants/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    room_id: chatRoom.id,
+                    user_id: state.user.id
+                })
+            }, state.token);
+            
+            console.log(`Added current user (${state.user.id}) as participant`);
+            
+            // Add target user as participant
+            await apiFetch('http://127.0.0.1:8000/api/addon/participants/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    room_id: chatRoom.id,
+                    user_id: userId
+                })
+            }, state.token);
+            
+            console.log(`Added target user (${userId}) as participant`);
+        }
+        
+        // Open the chat interface
+        openChatInterface(chatRoom.id, targetUser, state);
+        
     } catch (error) {
         console.error('Error starting chat:', error);
         showToast('Failed to start chat: ' + error.message, 'danger');
     }
 }
 
-async function loadChatHistory(targetUserId, state, currentUserId) {
+// Function to open the chat interface
+function openChatInterface(roomId, targetUser, state) {
     try {
-        console.log(`Loading chat history between users ${currentUserId} and ${targetUserId}`);
+        console.log(`Opening chat interface for room: ${roomId} with user:`, targetUser);
         
-        // First, get all chat rooms for the current user
-        const chatRooms = await apiFetch(`http://127.0.0.1:8000/chat/api/chat-rooms/?is_private=true`, {}, state.token);
-        console.log(`Found ${chatRooms.length} chat rooms:`, chatRooms);
-        
-        // Log the structure of the first room to understand its format
-        if (chatRooms.length > 0) {
-            console.log('First room structure:', JSON.stringify(chatRooms[0], null, 2));
+        // Create the chat modal if it doesn't exist
+        let chatModal = document.getElementById('chatModal');
+        if (!chatModal) {
+            const modalHtml = `
+                <div class="modal fade" id="chatModal" tabindex="-1" aria-hidden="true">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Chat with ${targetUser.first_name} ${targetUser.last_name} (@${targetUser.username})</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div id="chat-messages" class="chat-messages border rounded p-3 mb-3" style="height: 300px; overflow-y: auto;">
+                                    <div id="chat-status" class="text-center text-muted">Loading messages...</div>
+                                </div>
+                                <div class="input-group">
+                                    <input type="text" id="chat-input" class="form-control" placeholder="Type your message...">
+                                    <button id="send-button" class="btn btn-primary">Send</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            chatModal = document.getElementById('chatModal');
         }
         
-        // Since we don't have participants in the room data, we need to fetch them separately
-        // or use the room created by the WebSocket connection
+        // Initialize the Bootstrap modal
+        const modal = new bootstrap.Modal(chatModal);
         
-        // Get the room ID from the WebSocket connection if available
-        const chatStatusElement = document.getElementById('chat-status');
-        if (chatStatusElement && chatStatusElement.dataset.roomId) {
-            const roomId = chatStatusElement.dataset.roomId;
-            console.log(`Using room ID from WebSocket connection: ${roomId}`);
-            
-            // Fetch messages for this room
-            const messages = await apiFetch(`http://127.0.0.1:8000/chat/api/chat-messages/?room=${roomId}`, {}, state.token);
-            console.log(`Loaded ${messages.length} messages from room ${roomId}`);
-            
-            displayMessages(messages, currentUserId);
-            return;
-        }
+        // Store the current room ID in a data attribute
+        chatModal.dataset.roomId = roomId;
         
-        // If we don't have a room ID from the WebSocket, try to find it by fetching participants
-        for (const room of chatRooms) {
-            if (!room.is_private) continue;
-            
-            // Fetch participants for this room
-            try {
-                const participants = await apiFetch(`http://127.0.0.1:8000/chat/api/chat-participants/?room=${room.id}`, {}, state.token);
-                console.log(`Room ${room.id} has ${participants.length} participants:`, participants);
-                
-                // Check if this room has both the current user and target user
-                const participantIds = participants.map(p => p.user.id);
-                if (participantIds.includes(currentUserId) && participantIds.includes(parseInt(targetUserId))) {
-                    console.log(`Found matching room: ${room.id}`);
+        // Load existing messages
+        loadChatMessages(roomId, state)
+            .then(() => {
+                // Set up the send button event listener
+                const sendButton = document.getElementById('send-button');
+                if (sendButton) {
+                    // Remove any existing event listeners
+                    const newSendButton = sendButton.cloneNode(true);
+                    sendButton.parentNode.replaceChild(newSendButton, sendButton);
                     
-                    // Fetch messages for this room
-                    const messages = await apiFetch(`http://127.0.0.1:8000/chat/api/chat-messages/?room=${room.id}`, {}, state.token);
-                    console.log(`Loaded ${messages.length} messages from room ${room.id}`);
-                    
-                    displayMessages(messages, currentUserId);
-                    return;
+                    newSendButton.addEventListener('click', () => {
+                        const chatInput = document.getElementById('chat-input');
+                        if (chatInput && chatInput.value.trim()) {
+                            sendChatMessage(roomId, chatInput.value.trim(), state)
+                                .then(() => {
+                                    chatInput.value = '';
+                                })
+                                .catch(error => {
+                                    console.error('Error sending message:', error);
+                                });
+                        }
+                    });
                 }
-            } catch (error) {
-                console.error(`Error fetching participants for room ${room.id}:`, error);
-            }
-        }
+                
+                // Set up the chat input event listener for Enter key
+                const chatInput = document.getElementById('chat-input');
+                if (chatInput) {
+                    // Remove any existing event listeners
+                    const newChatInput = chatInput.cloneNode(true);
+                    chatInput.parentNode.replaceChild(newChatInput, chatInput);
+                    
+                    newChatInput.addEventListener('keypress', (event) => {
+                        if (event.key === 'Enter' && !event.shiftKey) {
+                            event.preventDefault();
+                            const sendButton = document.getElementById('send-button');
+                            if (sendButton) {
+                                sendButton.click();
+                            }
+                        }
+                    });
+                }
+            })
+            .catch(error => {
+                console.error('Error loading chat messages:', error);
+                const chatStatus = document.getElementById('chat-status');
+                if (chatStatus) {
+                    chatStatus.textContent = 'Failed to load messages. Please try again.';
+                }
+            });
         
-        // If we get here, no matching room was found
-        console.log('No existing chat room found between these users');
-        const chatMessagesDiv = document.getElementById('chat-messages');
-        if (chatMessagesDiv) {
-            chatMessagesDiv.innerHTML = '<div class="text-muted text-center">No previous messages</div>';
-        }
+        // Show the modal
+        modal.show();
+        
     } catch (error) {
-        console.error('Error loading chat history:', error);
-        showToast('Failed to load chat history', 'warning');
-        const chatMessagesDiv = document.getElementById('chat-messages');
-        if (chatMessagesDiv) {
-            chatMessagesDiv.innerHTML = '<div class="text-danger text-center">Error loading history</div>';
-        }
+        console.error('Error opening chat interface:', error);
+        showToast('Failed to open chat interface: ' + error.message, 'danger');
     }
 }
 
-// Helper function to display messages
-function displayMessages(messages, currentUserId) {
-    const chatMessagesDiv = document.getElementById('chat-messages');
-    if (!chatMessagesDiv) {
+// Function to load chat messages
+function loadChatMessages(roomId, state) {
+    return apiFetch(`http://127.0.0.1:8000/api/addon/messages/?room=${roomId}`, {}, state.token)
+        .then(messages => {
+            console.log('Loaded messages:', messages);
+            
+            // Display messages in the chat container
+            const chatMessagesContainer = document.getElementById('chat-messages');
+            if (!chatMessagesContainer) {
+                console.error('Chat messages container not found');
+                return messages;
+            }
+            
+            chatMessagesContainer.innerHTML = '';
+            
+            if (messages.length === 0) {
+                chatMessagesContainer.innerHTML = '<div class="text-center text-muted">No messages yet. Start the conversation!</div>';
+                console.log('No messages to display');
+            } else {
+                messages.forEach(message => {
+                    displayMessage(message, state.user.id);
+                });
+            }
+            
+            // Scroll to the bottom of the chat container
+            chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
+            
+            return messages;
+        })
+        .catch(error => {
+            console.error('Error loading chat messages:', error);
+            throw error;
+        });
+}
+
+// Function to display a message
+function displayMessage(message, currentUserId) {
+    const chatMessagesContainer = document.getElementById('chat-messages');
+    if (!chatMessagesContainer) {
         console.error('Chat messages container not found');
         return;
     }
     
-    chatMessagesDiv.innerHTML = '';
+    const messageElement = document.createElement('div');
+    messageElement.classList.add('message');
     
-    if (messages.length === 0) {
-        chatMessagesDiv.innerHTML = '<div class="text-muted text-center">No previous messages</div>';
+    // Add sender class if the message is from the current user
+    if (message.user.id === parseInt(currentUserId)) {
+        messageElement.classList.add('sender');
     } else {
-        messages.forEach(msg => {
-            console.log(`Displaying message: ${msg.id} from ${msg.user.username}`);
-            appendMessage(msg.user.username, msg.content, msg.sent_at, msg.user.id === currentUserId);
-        });
+        messageElement.classList.add('receiver');
     }
     
-    chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight;
+    const timestamp = new Date(message.sent_at).toLocaleTimeString();
+    
+    messageElement.innerHTML = `
+        <div class="message-content">${message.content}</div>
+        <div class="message-meta">
+            <span class="message-sender">${message.user.first_name || message.user.username}</span>
+            <span class="message-time">${timestamp}</span>
+        </div>
+    `;
+    
+    chatMessagesContainer.appendChild(messageElement);
 }
 
-function appendMessage(username, content, sentAt, isSent) {
-    const chatMessagesDiv = document.getElementById('chat-messages');
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `message ${isSent ? 'sent' : 'received'}`;
-    messageDiv.innerHTML = `
-        <div class="username">${username}</div>
-        <div>${content}</div>
-        <div class="timestamp">${new Date(sentAt).toLocaleString()}</div>
-    `;
-    chatMessagesDiv.appendChild(messageDiv);
-    chatMessagesDiv.scrollTop = chatMessagesDiv.scrollHeight;
+// Function to send a chat message
+async function sendChatMessage(roomId, content, state) {
+    try {
+        console.log(`Sending message to room ${roomId}: ${content}`);
+        
+        // Create the message
+        const message = await apiFetch('http://127.0.0.1:8000/api/addon/messages/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                room_id: roomId,
+                content: content
+            })
+        }, state.token);
+        
+        console.log('Message sent successfully:', message);
+        
+        // Display the message in the chat window
+        displayMessage(message, state.user.id);
+        
+        // Scroll to the bottom of the chat container
+        const chatMessagesContainer = document.getElementById('chat-messages');
+        if (chatMessagesContainer) {
+            chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
+        }
+        
+        return message;
+    } catch (error) {
+        console.error('Error sending message:', error);
+        throw error;
+    }
 }

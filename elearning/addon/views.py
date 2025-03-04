@@ -23,3 +23,15 @@ class ChatParticipantViewSet(viewsets.ModelViewSet):
     queryset = ChatParticipant.objects.all()
     serializer_class = ChatParticipantSerializer
     permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = ChatParticipant.objects.all()
+        room_id = self.request.query_params.get('room')
+        user_id = self.request.query_params.get('user')
+        
+        if room_id:
+            queryset = queryset.filter(room_id=room_id)
+        if user_id:
+            queryset = queryset.filter(user_id=user_id)
+            
+        return queryset
