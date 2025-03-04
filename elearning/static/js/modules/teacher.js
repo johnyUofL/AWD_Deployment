@@ -3671,6 +3671,13 @@ async function startChat(userId, state) {
         if (!chatRoom) {
             console.log("Creating new chat room");
             
+            // Create a proper chat room name based on both users
+            const currentUserName = state.user.username;
+            const targetUserName = targetUser.username;
+            const chatRoomName = `Private Chat: ${currentUserName}-${targetUserName}`;
+            
+            console.log(`Creating chat room with name: ${chatRoomName}`);
+            
             // Create a new chat room
             chatRoom = await apiFetch('http://127.0.0.1:8000/api/addon/chat-rooms/', {
                 method: 'POST',
@@ -3678,7 +3685,7 @@ async function startChat(userId, state) {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    name: `Private Chat: ${state.user.username}-${targetUser.username}`,
+                    name: chatRoomName,
                     description: '',
                     course_id: null,
                     is_private: true
@@ -3714,6 +3721,30 @@ async function startChat(userId, state) {
             }, state.token);
             
             console.log(`Added target user (${userId}) as participant`);
+        } else {
+            // If the chat room exists but has the wrong name, update it
+            if (chatRoom.name === "Private Chat: johny-johnysdsdfsdf") {
+                const currentUserName = state.user.username;
+                const targetUserName = targetUser.username;
+                const correctChatRoomName = `Private Chat: ${currentUserName}-${targetUserName}`;
+                
+                console.log(`Updating chat room name from "${chatRoom.name}" to "${correctChatRoomName}"`);
+                
+                // Update the chat room name
+                await apiFetch(`http://127.0.0.1:8000/api/addon/chat-rooms/${chatRoom.id}/`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: correctChatRoomName
+                    })
+                }, state.token);
+                
+                // Update the local chatRoom object
+                chatRoom.name = correctChatRoomName;
+                console.log("Chat room name updated successfully");
+            }
         }
         
         // Open the chat interface
@@ -3824,26 +3855,32 @@ function openChatInterface(roomId, targetUser, state) {
     }
 }
 
-// Function to load chat messages
+// Function to load chat messages for a specific room
 function loadChatMessages(roomId, state) {
+    console.log(`Loading messages for room ID: ${roomId}`);
+    
     return apiFetch(`http://127.0.0.1:8000/api/addon/messages/?room=${roomId}`, {}, state.token)
         .then(messages => {
-            console.log('Loaded messages:', messages);
+            console.log(`Loaded ${messages.length} messages for room ${roomId}`);
+            
+            // Filter messages to ensure they belong to the current room
+            const filteredMessages = messages.filter(message => message.room.id === parseInt(roomId));
+            console.log(`After filtering, ${filteredMessages.length} messages belong to room ${roomId}`);
             
             // Display messages in the chat container
             const chatMessagesContainer = document.getElementById('chat-messages');
             if (!chatMessagesContainer) {
                 console.error('Chat messages container not found');
-                return messages;
+                return filteredMessages;
             }
             
             chatMessagesContainer.innerHTML = '';
             
-            if (messages.length === 0) {
+            if (filteredMessages.length === 0) {
                 chatMessagesContainer.innerHTML = '<div class="text-center text-muted">No messages yet. Start the conversation!</div>';
-                console.log('No messages to display');
+                console.log('No messages to display for this room');
             } else {
-                messages.forEach(message => {
+                filteredMessages.forEach(message => {
                     displayMessage(message, state.user.id);
                 });
             }
@@ -3851,10 +3888,10 @@ function loadChatMessages(roomId, state) {
             // Scroll to the bottom of the chat container
             chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
             
-            return messages;
+            return filteredMessages;
         })
         .catch(error => {
-            console.error('Error loading chat messages:', error);
+            console.error(`Error loading chat messages for room ${roomId}:`, error);
             throw error;
         });
 }

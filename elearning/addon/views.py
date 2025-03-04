@@ -15,9 +15,16 @@ class ChatMessageViewSet(viewsets.ModelViewSet):
     queryset = ChatMessage.objects.all()
     serializer_class = ChatMessageSerializer
     permission_classes = [IsAuthenticated]
-
+    
     def get_queryset(self):
-        return ChatMessage.objects.filter(room__participants__user=self.request.user)
+        queryset = ChatMessage.objects.all()
+        room_id = self.request.query_params.get('room')
+        
+        if room_id:
+            queryset = queryset.filter(room_id=room_id)
+            
+        # Order by sent_at to show messages in chronological order
+        return queryset.order_by('sent_at')
 
 class ChatParticipantViewSet(viewsets.ModelViewSet):
     queryset = ChatParticipant.objects.all()
