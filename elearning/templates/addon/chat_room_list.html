@@ -1,9 +1,0 @@
-{% extends 'base.html' %}
-{% block content %}
-    <h1>Chat Rooms</h1>
-    <ul>
-        {% for room in chat_rooms %}
-            <li>{{ room.name }} - {{ room.course.title }}</li>
-        {% endfor %}
-    </ul>
-{% endblock %}
