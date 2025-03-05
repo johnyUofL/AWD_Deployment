@@ -3765,10 +3765,10 @@ function openChatInterface(roomId, targetUser, state) {
         let chatModal = document.getElementById('chatModal');
         if (!chatModal) {
             const modalHtml = `
-                <div class="modal fade" id="chatModal" tabindex="-1" aria-hidden="true">
-                    <div class="modal-dialog modal-lg">
+                <div class="modal fade" id="chatModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="false">
+                    <div class="modal-dialog modal-lg" style="z-index: 1060;">
                         <div class="modal-content">
-                            <div class="modal-header">
+                            <div class="modal-header draggable-handle">
                                 <h5 class="modal-title">Chat with ${targetUser.first_name} ${targetUser.last_name} (@${targetUser.username})</h5>
                                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                             </div>
@@ -3788,10 +3788,15 @@ function openChatInterface(roomId, targetUser, state) {
             
             document.body.insertAdjacentHTML('beforeend', modalHtml);
             chatModal = document.getElementById('chatModal');
+            
+            // Make the modal draggable
+            makeDraggable(chatModal);
         }
         
         // Initialize the Bootstrap modal
-        const modal = new bootstrap.Modal(chatModal);
+        const modal = new bootstrap.Modal(chatModal, {
+            backdrop: false
+        });
         
         // Store the current room ID in a data attribute
         chatModal.dataset.roomId = roomId;
@@ -3849,10 +3854,51 @@ function openChatInterface(roomId, targetUser, state) {
         // Show the modal
         modal.show();
         
+        // Ensure the chat modal is on top of other modals
+        chatModal.style.zIndex = '1060';
+        
     } catch (error) {
         console.error('Error opening chat interface:', error);
         showToast('Failed to open chat interface: ' + error.message, 'danger');
     }
+}
+
+// Add a function to make elements draggable
+function makeDraggable(element) {
+    const modalDialog = element.querySelector('.modal-dialog');
+    const handle = element.querySelector('.draggable-handle');
+    
+    let offsetX, offsetY, isDragging = false;
+    
+    handle.style.cursor = 'move';
+    
+    handle.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        const rect = modalDialog.getBoundingClientRect();
+        offsetX = e.clientX - rect.left;
+        offsetY = e.clientY - rect.top;
+        
+        // Add a high z-index to ensure it stays on top while dragging
+        modalDialog.style.zIndex = '1070';
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        
+        const x = e.clientX - offsetX;
+        const y = e.clientY - offsetY;
+        
+        modalDialog.style.position = 'absolute';
+        modalDialog.style.margin = '0';
+        modalDialog.style.left = `${x}px`;
+        modalDialog.style.top = `${y}px`;
+    });
+    
+    document.addEventListener('mouseup', () => {
+        isDragging = false;
+        // Reset to the normal z-index
+        modalDialog.style.zIndex = '1060';
+    });
 }
 
 // Function to load chat messages for a specific room
