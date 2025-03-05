@@ -67,6 +67,12 @@ export function renderTeacherDashboard(state) {
     document.getElementById('view-users-btn').addEventListener('click', () => viewUsers(state));
     
     fetchTeacherCourses(state);
+    
+    // Initialize the chat notification system
+    setTimeout(() => {
+        initializeChatNotificationSystem(state);
+        console.log("Chat notification system initialized");
+    }, 1000);
 }
 
 export async function fetchTeacherCourses(state) {
@@ -4032,5 +4038,397 @@ async function sendChatMessage(roomId, content, state, messagesContainerId = 'ch
     } catch (error) {
         console.error('Error sending message:', error);
         throw error;
+    }
+}
+
+// Add a chat notification system to the bottom right corner
+function initializeChatNotificationSystem(state) {
+    console.log("Initializing chat notification system...");
+    
+    // Check if the chat icon already exists
+    if (document.getElementById('chat-notification-icon')) {
+        console.log("Chat notification icon already exists");
+        return; // Already initialized
+    }
+    
+    // Create the chat notification icon and panel
+    const chatIconHtml = `
+        <div id="chat-notification-container" style="position: fixed; bottom: 20px; right: 20px; z-index: 1040;">
+            <div id="chat-notification-icon" class="rounded-circle bg-primary d-flex justify-content-center align-items-center" 
+                 style="width: 50px; height: 50px; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.2);">
+                <i class="bi bi-chat-dots text-white" style="font-size: 1.5rem;"></i>
+                <span id="unread-message-count" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" 
+                      style="display: none;">
+                    0
+                </span>
+            </div>
+            
+            <div id="chat-list-panel" class="card" 
+                 style="position: absolute; bottom: 60px; right: 0; width: 300px; max-height: 400px; display: none; overflow-y: auto;">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h6 class="m-0">Your Conversations</h6>
+                    <button id="refresh-chats-btn" class="btn btn-sm btn-link text-white p-0">
+                        <i class="bi bi-arrow-clockwise"></i>
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div id="chat-rooms-list" class="list-group list-group-flush">
+                        <div class="text-center p-3">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="text-muted mb-0">Loading your conversations...</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <button id="view-all-users-btn" class="btn btn-sm btn-outline-primary w-100">
+                        <i class="bi bi-people"></i> Start New Conversation
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    console.log("Adding chat icon to DOM");
+    // Add the chat icon to the DOM
+    document.body.insertAdjacentHTML('beforeend', chatIconHtml);
+    
+    // Add event listeners
+    document.getElementById('chat-notification-icon').addEventListener('click', () => {
+        console.log("Chat icon clicked");
+        const chatListPanel = document.getElementById('chat-list-panel');
+        if (chatListPanel.style.display === 'none') {
+            // Show the panel and load chat rooms
+            chatListPanel.style.display = 'block';
+            loadChatRooms(state);
+            
+            // Reset the unread count when opening the panel
+            document.getElementById('unread-message-count').style.display = 'none';
+            document.getElementById('unread-message-count').textContent = '0';
+        } else {
+            // Hide the panel
+            chatListPanel.style.display = 'none';
+        }
+    });
+    
+    document.getElementById('refresh-chats-btn').addEventListener('click', () => {
+        loadChatRooms(state);
+    });
+    
+    document.getElementById('view-all-users-btn').addEventListener('click', () => {
+        // Hide the chat list panel
+        document.getElementById('chat-list-panel').style.display = 'none';
+        
+        // Show the users modal to start a new conversation
+        viewUsers(state);
+    });
+    
+    console.log("Setting up periodic message checking");
+    // Set up periodic checking for new messages
+    setInterval(() => {
+        checkForNewMessages(state);
+    }, 30000); // Check every 30 seconds
+    
+    // Initial check for new messages
+    checkForNewMessages(state);
+    
+    console.log("Chat notification system initialization complete");
+}
+
+// Function to load chat rooms
+async function loadChatRooms(state) {
+    try {
+        const chatRoomsList = document.getElementById('chat-rooms-list');
+        
+        // Show loading indicator
+        chatRoomsList.innerHTML = `
+            <div class="text-center p-3">
+                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="text-muted mb-0">Loading your conversations...</p>
+            </div>
+        `;
+        
+        // Fetch chat rooms where the current user is a participant
+        const chatRooms = await apiFetch('http://127.0.0.1:8000/api/addon/chat-rooms/', {}, state.token);
+        
+        // Filter to only include rooms where the user is a participant
+        const userRooms = [];
+        
+        for (const room of chatRooms) {
+            // Fetch participants for this room
+            const participants = await apiFetch(`http://127.0.0.1:8000/api/addon/participants/?room=${room.id}`, {}, state.token);
+            
+            // Check if current user is a participant
+            const isParticipant = participants.some(p => p.user.id === parseInt(state.user.id));
+            
+            if (isParticipant) {
+                // Find the other participant (for private chats)
+                let otherParticipant = null;
+                if (room.is_private) {
+                    otherParticipant = participants.find(p => p.user.id !== parseInt(state.user.id))?.user;
+                }
+                
+                // Get the last message in this room
+                const messages = await apiFetch(`http://127.0.0.1:8000/api/addon/messages/?room=${room.id}&limit=1`, {}, state.token);
+                const lastMessage = messages.length > 0 ? messages[0] : null;
+                
+                // Add room with additional info
+                userRooms.push({
+                    ...room,
+                    otherParticipant,
+                    lastMessage
+                });
+            }
+        }
+        
+        // Sort rooms by last message time (most recent first)
+        userRooms.sort((a, b) => {
+            if (!a.lastMessage) return 1;
+            if (!b.lastMessage) return -1;
+            return new Date(b.lastMessage.sent_at) - new Date(a.lastMessage.sent_at);
+        });
+        
+        // Display the rooms
+        if (userRooms.length === 0) {
+            chatRoomsList.innerHTML = `
+                <div class="text-center p-3">
+                    <p class="text-muted mb-0">No conversations yet.</p>
+                    <small class="text-muted">Click "Start New Conversation" to begin chatting.</small>
+                </div>
+            `;
+        } else {
+            chatRoomsList.innerHTML = userRooms.map(room => {
+                // Determine the display name for the room
+                let displayName = room.name;
+                let avatarUrl = 'https://via.placeholder.com/40?text=?';
+                
+                if (room.is_private && room.otherParticipant) {
+                    displayName = `${room.otherParticipant.first_name} ${room.otherParticipant.last_name}`;
+                    if (room.otherParticipant.profile_picture_path) {
+                        avatarUrl = room.otherParticipant.profile_picture_path;
+                    }
+                }
+                
+                // Format the last message preview
+                let lastMessagePreview = 'No messages yet';
+                let lastMessageTime = '';
+                
+                if (room.lastMessage) {
+                    lastMessagePreview = room.lastMessage.content.length > 30 
+                        ? room.lastMessage.content.substring(0, 30) + '...' 
+                        : room.lastMessage.content;
+                    
+                    const messageDate = new Date(room.lastMessage.sent_at);
+                    const today = new Date();
+                    
+                    if (messageDate.toDateString() === today.toDateString()) {
+                        // Today, show time
+                        lastMessageTime = messageDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    } else {
+                        // Not today, show date
+                        lastMessageTime = messageDate.toLocaleDateString();
+                    }
+                }
+                
+                return `
+                    <a href="#" class="list-group-item list-group-item-action open-chat-room" data-room-id="${room.id}" data-room-name="${displayName}">
+                        <div class="d-flex align-items-center">
+                            <div class="flex-shrink-0">
+                                <img src="${avatarUrl}" class="rounded-circle" width="40" height="40" style="object-fit: cover;">
+                            </div>
+                            <div class="flex-grow-1 ms-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0">${displayName}</h6>
+                                    <small class="text-muted">${lastMessageTime}</small>
+                                </div>
+                                <p class="text-muted small mb-0">${lastMessagePreview}</p>
+                            </div>
+                        </div>
+                    </a>
+                `;
+            }).join('');
+            
+            // Add event listeners to open chat rooms
+            document.querySelectorAll('.open-chat-room').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    
+                    const roomId = link.getAttribute('data-room-id');
+                    const roomName = link.getAttribute('data-room-name');
+                    
+                    // Find the other participant
+                    const room = userRooms.find(r => r.id === parseInt(roomId));
+                    
+                    if (room && room.otherParticipant) {
+                        // Open chat with the other participant
+                        openChatInterface(roomId, room.otherParticipant, state);
+                    } else {
+                        // Fallback if we can't find the other participant
+                        const dummyUser = {
+                            id: 0,
+                            first_name: roomName.split(' ')[0] || 'User',
+                            last_name: roomName.split(' ')[1] || '',
+                            username: 'user'
+                        };
+                        openChatInterface(roomId, dummyUser, state);
+                    }
+                    
+                    // Hide the chat list panel
+                    document.getElementById('chat-list-panel').style.display = 'none';
+                });
+            });
+        }
+    } catch (error) {
+        console.error('Error loading chat rooms:', error);
+        
+        document.getElementById('chat-rooms-list').innerHTML = `
+            <div class="text-center p-3">
+                <p class="text-danger mb-0">Failed to load conversations.</p>
+                <button id="retry-load-chats" class="btn btn-sm btn-outline-primary mt-2">
+                    <i class="bi bi-arrow-clockwise"></i> Retry
+                </button>
+            </div>
+        `;
+        
+        document.getElementById('retry-load-chats')?.addEventListener('click', () => {
+            loadChatRooms(state);
+        });
+    }
+}
+
+// Function to check for new messages
+async function checkForNewMessages(state) {
+    try {
+        // Get the last time we checked for messages
+        const lastChecked = localStorage.getItem('lastMessageCheck') || '2000-01-01T00:00:00Z';
+        
+        // Update the last check time
+        localStorage.setItem('lastMessageCheck', new Date().toISOString());
+        
+        // Fetch all chat rooms where the user is a participant
+        const chatRooms = await apiFetch('http://127.0.0.1:8000/api/addon/chat-rooms/', {}, state.token);
+        
+        let totalNewMessages = 0;
+        
+        for (const room of chatRooms) {
+            // Fetch participants for this room
+            const participants = await apiFetch(`http://127.0.0.1:8000/api/addon/participants/?room=${room.id}`, {}, state.token);
+            
+            // Check if current user is a participant
+            const isParticipant = participants.some(p => p.user.id === parseInt(state.user.id));
+            
+            if (isParticipant) {
+                // Get messages newer than the last check time
+                const messages = await apiFetch(
+                    `http://127.0.0.1:8000/api/addon/messages/?room=${room.id}&after=${lastChecked}`, 
+                    {}, 
+                    state.token
+                );
+                
+                // Count messages not from the current user
+                const newMessages = messages.filter(msg => msg.user.id !== parseInt(state.user.id));
+                totalNewMessages += newMessages.length;
+                
+                // If there are new messages and a chat window is open for this room, update it
+                if (newMessages.length > 0) {
+                    const chatWindow = document.getElementById(`chat-window-${room.id}`);
+                    if (chatWindow) {
+                        // Load the new messages into the chat window
+                        loadChatMessages(room.id, state, `chat-messages-${room.id}`, `chat-status-${room.id}`);
+                    }
+                }
+            }
+        }
+        
+        // Update the notification badge
+        const unreadBadge = document.getElementById('unread-message-count');
+        if (totalNewMessages > 0) {
+            unreadBadge.textContent = totalNewMessages > 99 ? '99+' : totalNewMessages;
+            unreadBadge.style.display = 'block';
+            
+            // Change the icon color to indicate new messages
+            document.getElementById('chat-notification-icon').classList.remove('bg-primary');
+            document.getElementById('chat-notification-icon').classList.add('bg-danger');
+            
+            // Play a notification sound if enabled
+            if (localStorage.getItem('chatSoundEnabled') !== 'false') {
+                playNotificationSound();
+            }
+        }
+    } catch (error) {
+        console.error('Error checking for new messages:', error);
+    }
+}
+
+// Function to play a notification sound
+function playNotificationSound() {
+    // Create an audio element
+    const audio = new Audio('/static/sounds/notification.mp3');
+    
+    // Try to play the sound
+    audio.play().catch(error => {
+        console.log('Could not play notification sound:', error);
+    });
+}
+
+// Function to update the unread message count
+async function updateUnreadMessageCount(state) {
+    try {
+        // Get the last time we checked for messages
+        const lastChecked = localStorage.getItem('lastMessageCheck') || '2000-01-01T00:00:00Z';
+        
+        // Fetch all chat rooms where the user is a participant
+        const chatRooms = await apiFetch('http://127.0.0.1:8000/api/addon/chat-rooms/', {}, state.token);
+        
+        let totalNewMessages = 0;
+        
+        for (const room of chatRooms) {
+            // Fetch participants for this room
+            const participants = await apiFetch(`http://127.0.0.1:8000/api/addon/participants/?room=${room.id}`, {}, state.token);
+            
+            // Check if current user is a participant
+            const isParticipant = participants.some(p => p.user.id === parseInt(state.user.id));
+            
+            if (isParticipant) {
+                // Skip rooms that have an open chat window
+                const chatWindow = document.getElementById(`chat-window-${room.id}`);
+                if (chatWindow) {
+                    continue;
+                }
+                
+                // Get messages newer than the last check time
+                const messages = await apiFetch(
+                    `http://127.0.0.1:8000/api/addon/messages/?room=${room.id}&after=${lastChecked}`, 
+                    {}, 
+                    state.token
+                );
+                
+                // Count messages not from the current user
+                const newMessages = messages.filter(msg => msg.user.id !== parseInt(state.user.id));
+                totalNewMessages += newMessages.length;
+            }
+        }
+        
+        // Update the notification badge
+        const unreadBadge = document.getElementById('unread-message-count');
+        if (totalNewMessages > 0) {
+            unreadBadge.textContent = totalNewMessages > 99 ? '99+' : totalNewMessages;
+            unreadBadge.style.display = 'block';
+            
+            // Change the icon color to indicate new messages
+            document.getElementById('chat-notification-icon').classList.remove('bg-primary');
+            document.getElementById('chat-notification-icon').classList.add('bg-danger');
+        } else {
+            unreadBadge.style.display = 'none';
+            
+            // Reset the icon color
+            document.getElementById('chat-notification-icon').classList.remove('bg-danger');
+            document.getElementById('chat-notification-icon').classList.add('bg-primary');
+        }
+    } catch (error) {
+        console.error('Error updating unread message count:', error);
     }
 }
