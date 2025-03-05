@@ -4151,6 +4151,43 @@ async function loadChatRooms(state) {
             </div>
         `;
         
+        // Make sure we have a valid user ID
+        if (!state.user && state.userId) {
+            // Try to fetch the current user information
+            try {
+                const currentUser = await apiFetch(`http://127.0.0.1:8000/userauths/api/users/${state.userId}/`, {}, state.token);
+                state.user = currentUser;
+                console.log('Current user fetched for chat rooms:', currentUser);
+            } catch (userError) {
+                console.error('Error fetching user details:', userError);
+                // Create a minimal user object from state
+                state.user = {
+                    id: state.userId,
+                    username: state.username || 'user_' + state.userId,
+                    first_name: state.firstName || '',
+                    last_name: state.lastName || ''
+                };
+                console.log('Created minimal user object:', state.user);
+            }
+        }
+        
+        // If we still don't have a user object, show an error
+        if (!state.user || !state.user.id) {
+            chatRoomsList.innerHTML = `
+                <div class="text-center p-3">
+                    <p class="text-danger mb-0">User information not available.</p>
+                    <button id="retry-load-chats" class="btn btn-sm btn-outline-primary mt-2">
+                        <i class="bi bi-arrow-clockwise"></i> Retry
+                    </button>
+                </div>
+            `;
+            
+            document.getElementById('retry-load-chats')?.addEventListener('click', () => {
+                loadChatRooms(state);
+            });
+            return;
+        }
+        
         // Fetch chat rooms where the current user is a participant
         const chatRooms = await apiFetch('http://127.0.0.1:8000/api/addon/chat-rooms/', {}, state.token);
         
@@ -4162,13 +4199,13 @@ async function loadChatRooms(state) {
             const participants = await apiFetch(`http://127.0.0.1:8000/api/addon/participants/?room=${room.id}`, {}, state.token);
             
             // Check if current user is a participant
-            const isParticipant = participants.some(p => p.user.id === parseInt(state.user.id));
+            const isParticipant = participants.some(p => p.user && p.user.id === parseInt(state.user.id));
             
             if (isParticipant) {
                 // Find the other participant (for private chats)
                 let otherParticipant = null;
                 if (room.is_private) {
-                    otherParticipant = participants.find(p => p.user.id !== parseInt(state.user.id))?.user;
+                    otherParticipant = participants.find(p => p.user && p.user.id !== parseInt(state.user.id))?.user;
                 }
                 
                 // Get the last message in this room
@@ -4206,7 +4243,9 @@ async function loadChatRooms(state) {
                 let avatarUrl = 'https://via.placeholder.com/40?text=?';
                 
                 if (room.is_private && room.otherParticipant) {
-                    displayName = `${room.otherParticipant.first_name} ${room.otherParticipant.last_name}`;
+                    displayName = `${room.otherParticipant.first_name || ''} ${room.otherParticipant.last_name || ''}`.trim();
+                    if (!displayName) displayName = room.otherParticipant.username || 'User';
+                    
                     if (room.otherParticipant.profile_picture_path) {
                         avatarUrl = room.otherParticipant.profile_picture_path;
                     }
@@ -4302,6 +4341,30 @@ async function loadChatRooms(state) {
 // Function to check for new messages
 async function checkForNewMessages(state) {
     try {
+        // Make sure we have a valid user ID
+        if (!state.user && state.userId) {
+            // Try to fetch the current user information
+            try {
+                const currentUser = await apiFetch(`http://127.0.0.1:8000/userauths/api/users/${state.userId}/`, {}, state.token);
+                state.user = currentUser;
+            } catch (userError) {
+                console.error('Error fetching user details for message check:', userError);
+                // Create a minimal user object from state
+                state.user = {
+                    id: state.userId,
+                    username: state.username || 'user_' + state.userId,
+                    first_name: state.firstName || '',
+                    last_name: state.lastName || ''
+                };
+            }
+        }
+        
+        // If we still don't have a user object, return
+        if (!state.user || !state.user.id) {
+            console.error('User information not available for message check');
+            return;
+        }
+        
         // Get the last time we checked for messages
         const lastChecked = localStorage.getItem('lastMessageCheck') || '2000-01-01T00:00:00Z';
         
@@ -4318,7 +4381,7 @@ async function checkForNewMessages(state) {
             const participants = await apiFetch(`http://127.0.0.1:8000/api/addon/participants/?room=${room.id}`, {}, state.token);
             
             // Check if current user is a participant
-            const isParticipant = participants.some(p => p.user.id === parseInt(state.user.id));
+            const isParticipant = participants.some(p => p.user && p.user.id === parseInt(state.user.id));
             
             if (isParticipant) {
                 // Get messages newer than the last check time
@@ -4329,7 +4392,7 @@ async function checkForNewMessages(state) {
                 );
                 
                 // Count messages not from the current user
-                const newMessages = messages.filter(msg => msg.user.id !== parseInt(state.user.id));
+                const newMessages = messages.filter(msg => msg.user && msg.user.id !== parseInt(state.user.id));
                 totalNewMessages += newMessages.length;
                 
                 // If there are new messages and a chat window is open for this room, update it
@@ -4345,17 +4408,22 @@ async function checkForNewMessages(state) {
         
         // Update the notification badge
         const unreadBadge = document.getElementById('unread-message-count');
-        if (totalNewMessages > 0) {
-            unreadBadge.textContent = totalNewMessages > 99 ? '99+' : totalNewMessages;
-            unreadBadge.style.display = 'block';
-            
-            // Change the icon color to indicate new messages
-            document.getElementById('chat-notification-icon').classList.remove('bg-primary');
-            document.getElementById('chat-notification-icon').classList.add('bg-danger');
-            
-            // Play a notification sound if enabled
-            if (localStorage.getItem('chatSoundEnabled') !== 'false') {
-                playNotificationSound();
+        if (unreadBadge) {
+            if (totalNewMessages > 0) {
+                unreadBadge.textContent = totalNewMessages > 99 ? '99+' : totalNewMessages;
+                unreadBadge.style.display = 'block';
+                
+                // Change the icon color to indicate new messages
+                const chatIcon = document.getElementById('chat-notification-icon');
+                if (chatIcon) {
+                    chatIcon.classList.remove('bg-primary');
+                    chatIcon.classList.add('bg-danger');
+                }
+                
+                // Play a notification sound if enabled
+                if (localStorage.getItem('chatSoundEnabled') !== 'false') {
+                    playNotificationSound();
+                }
             }
         }
     } catch (error) {
