@@ -1,4 +1,3 @@
-// components/course-card.js
 // Course card component for displaying course information
 
 /**

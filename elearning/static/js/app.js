@@ -80,6 +80,6 @@ function handleRouteChange() {
                 });
             }
             break;
-        // Add more routes as needed
+        
     }
 }

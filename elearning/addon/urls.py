@@ -9,5 +9,5 @@ router.register(r'chat-messages', ChatMessageViewSet)
 router.register(r'chat-participants', ChatParticipantViewSet)
 
 urlpatterns = [
-    path('api/', include(router.urls)),  # Maps to /chat/api/chat-rooms/, etc.
+    path('api/', include(router.urls)),  
 ]

@@ -776,7 +776,6 @@ export async function uploadVideo(courseId, modal, state) {
         modal.hide();
         showToast('Video uploaded successfully!', 'success');
         
-        // Change this line to call manageCourseContent instead of viewCourseDetails
         manageCourseContent(courseId, state);
     } catch (error) {
         console.error('Error uploading video:', error);
@@ -2015,7 +2014,7 @@ async function deleteVideo(materialId, courseId, state) {
             return;
         }
         
-        // If it's a video, we need to delete the video resource first
+        // we need to delete the video resource first
         if (material.video_details) {
             try {
                 console.log('Deleting video resource:', material.video_details.id);
@@ -2025,7 +2024,7 @@ async function deleteVideo(materialId, courseId, state) {
                 console.log('Video resource deleted successfully');
             } catch (error) {
                 console.error('Error deleting video resource:', error);
-                // Continue with material deletion even if video resource deletion fails
+                
             }
         }
         
@@ -3047,7 +3046,7 @@ function handleDrop(e) {
     
     this.appendChild(newItem);
     
-    // Add "Submit Assignment" button for assignments
+    //button for assignments
     if (data.type === 'assignment') {
         const submitContainer = document.createElement('div');
         submitContainer.className = 'ms-4 mb-2 assignment-submit-container';
@@ -3127,7 +3126,7 @@ async function saveCourseStructure(courseId, state) {
     }
 }
 
-// Add this function to view all submissions for an assignment
+// view all submissions for an assignment
 export async function viewAssignmentSubmissions(assignmentId, state) {
     try {
         const assignment = await apiFetch(`http://127.0.0.1:8000/api/core/assignments/${assignmentId}/`, {}, state.token);
@@ -3318,7 +3317,7 @@ function showGradingModal(submissionId, studentName, totalPoints, state) {
 
 async function viewUsers(state) {
     try {
-        // Use the correct endpoint for users
+       
         const users = await apiFetch(`http://127.0.0.1:8000/userauths/api/users/`, {}, state.token);
         
         const modalHtml = `
@@ -3809,13 +3808,13 @@ function openChatInterface(roomId, targetUser, state) {
                 const inputContainer = chatWindow.querySelector('.chat-input');
                 
                 if (messagesContainer.style.display === 'none') {
-                    // Expand
+                  
                     messagesContainer.style.display = 'block';
                     inputContainer.style.display = 'block';
                     chatWindow.style.height = 'auto';
                     chatWindow.querySelector('.minimize-chat-btn i').className = 'bi bi-dash';
                 } else {
-                    // Minimize
+                  
                     messagesContainer.style.display = 'none';
                     inputContainer.style.display = 'none';
                     chatWindow.style.height = 'auto';
@@ -3837,7 +3836,7 @@ function openChatInterface(roomId, targetUser, state) {
                 // Set up the send button event listener
                 const sendButton = document.getElementById(`send-button-${roomId}`);
                 if (sendButton) {
-                    // Remove any existing event listeners
+                  
                     const newSendButton = sendButton.cloneNode(true);
                     sendButton.parentNode.replaceChild(newSendButton, sendButton);
                     
@@ -3922,7 +3921,7 @@ function makeChatWindowDraggable(element) {
     
     document.addEventListener('mouseup', () => {
         isDragging = false;
-        // Reset to the normal z-index
+        
         element.style.zIndex = '1050';
     });
 }
@@ -3968,7 +3967,7 @@ function loadChatMessages(roomId, state, messagesContainerId = 'chat-messages', 
         });
 }
 
-// Updated function to display a message
+// function to display a message
 function displayMessage(message, currentUserId, messagesContainerId = 'chat-messages') {
     const chatMessagesContainer = document.getElementById(messagesContainerId);
     if (!chatMessagesContainer) {
@@ -4006,7 +4005,7 @@ function displayMessage(message, currentUserId, messagesContainerId = 'chat-mess
     chatMessagesContainer.appendChild(messageElement);
 }
 
-// Updated function to send a chat message
+// function to send a chat message
 async function sendChatMessage(roomId, content, state, messagesContainerId = 'chat-messages') {
     try {
         console.log(`Sending message to room ${roomId}: ${content}`);
@@ -4406,7 +4405,7 @@ async function checkForNewMessages(state) {
             }
         }
         
-        // Update the notification badge
+        // notification badge
         const unreadBadge = document.getElementById('unread-message-count');
         if (unreadBadge) {
             if (totalNewMessages > 0) {

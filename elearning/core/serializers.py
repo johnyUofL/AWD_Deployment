@@ -3,7 +3,7 @@ from .models import (
     Course, Enrollment, CourseMaterial, VideoResource,
     Assignment, Submission, Grade, CourseFeedback, Announcement, CourseStructure
 )
-from userauths.models import User  # Import User model
+from userauths.models import User  
 from userauths.serializers import UserSerializer
 
 class CourseSerializer(serializers.ModelSerializer):
@@ -19,10 +19,10 @@ class CourseSerializer(serializers.ModelSerializer):
         return obj.enrollments.filter(is_active=True).count()
 
 class EnrollmentSerializer(serializers.ModelSerializer):
-    student = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), write_only=True)  # Write ID, read as serialized
-    course = serializers.PrimaryKeyRelatedField(queryset=Course.objects.all(), write_only=True)  # Write ID, read as serialized
-    student_detail = UserSerializer(source='student', read_only=True)  # Rename for output
-    course_detail = CourseSerializer(source='course', read_only=True)  # Rename for output
+    student = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), write_only=True)  
+    course = serializers.PrimaryKeyRelatedField(queryset=Course.objects.all(), write_only=True)  
+    student_detail = UserSerializer(source='student', read_only=True) 
+    course_detail = CourseSerializer(source='course', read_only=True)  
     
     class Meta:
         model = Enrollment
@@ -42,7 +42,7 @@ class CourseMaterialSerializer(serializers.ModelSerializer):
                   'file_type', 'upload_date', 'is_visible', 'video_details']
 
 class AssignmentSerializer(serializers.ModelSerializer):
-    course = serializers.PrimaryKeyRelatedField(queryset=Course.objects.all())  # Accept course ID as input
+    course = serializers.PrimaryKeyRelatedField(queryset=Course.objects.all())  
     
     class Meta:
         model = Assignment
@@ -67,7 +67,7 @@ class SubmissionSerializer(serializers.ModelSerializer):
         fields = ['id', 'assignment', 'assignment_detail', 'student', 'submission_date', 'file_path', 'comments', 'is_late']
     
     def validate_file_path(self, value):
-        # Optional: Add validation for student submission files
+     
         if value:
             valid_extensions = ['.pdf', '.doc', '.docx', '.txt', '.zip']  # Example allowed file types
             if not value.name.lower().endswith(tuple(valid_extensions)):

@@ -303,8 +303,6 @@ async function markMaterialComplete(materialId) {
         showToast('Material marked as complete!', 'success');
         
         // Refresh the current page
-        // This is a simple approach - in a real app, you might want to update just the UI element
-        // without a full page refresh
         window.location.reload();
     } catch (error) {
         console.error('Error marking material complete:', error);

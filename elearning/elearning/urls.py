@@ -19,5 +19,5 @@ urlpatterns = [
     path('api/addon/', include(('addon.api_urls', 'addon'), namespace='addon_api')),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    path('chat/', include('addon.urls')),  # Single entry for addon URLs
+    path('chat/', include('addon.urls')),  
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) + static(settings.STATIC_URL, document_root=settings.STATICFILES_DIRS[0])

@@ -111,7 +111,7 @@ async function fetchMaterialDetails(materialId, materialType, state) {
     }
 }
 
-// Format duration (e.g., 125 seconds -> "2:05")
+// Format duration 
 function formatDuration(seconds) {
     if (!seconds) return "0:00";
     const minutes = Math.floor(seconds / 60);
