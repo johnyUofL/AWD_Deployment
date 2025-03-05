@@ -3761,60 +3761,84 @@ function openChatInterface(roomId, targetUser, state) {
     try {
         console.log(`Opening chat interface for room: ${roomId} with user:`, targetUser);
         
-        // Create the chat modal if it doesn't exist
-        let chatModal = document.getElementById('chatModal');
-        if (!chatModal) {
-            const modalHtml = `
-                <div class="modal fade" id="chatModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="false">
-                    <div class="modal-dialog modal-lg" style="z-index: 1060;">
-                        <div class="modal-content">
-                            <div class="modal-header draggable-handle">
-                                <h5 class="modal-title">Chat with ${targetUser.first_name} ${targetUser.last_name} (@${targetUser.username})</h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                            </div>
-                            <div class="modal-body">
-                                <div id="chat-messages" class="chat-messages border rounded p-3 mb-3" style="height: 300px; overflow-y: auto;">
-                                    <div id="chat-status" class="text-center text-muted">Loading messages...</div>
-                                </div>
-                                <div class="input-group">
-                                    <input type="text" id="chat-input" class="form-control" placeholder="Type your message...">
-                                    <button id="send-button" class="btn btn-primary">Send</button>
-                                </div>
-                            </div>
+        // Check if a chat window already exists for this room
+        let chatWindow = document.getElementById(`chat-window-${roomId}`);
+        
+        if (!chatWindow) {
+            // Create a floating chat window instead of a modal
+            const chatWindowHtml = `
+                <div id="chat-window-${roomId}" class="chat-window" style="position: fixed; bottom: 20px; right: 20px; width: 350px; z-index: 1050; background: white; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.2); display: flex; flex-direction: column; max-height: 500px;">
+                    <div class="chat-header draggable-handle" style="padding: 10px; background: #f8f9fa; border-radius: 8px 8px 0 0; cursor: move; display: flex; justify-content: space-between; align-items: center;">
+                        <h6 class="m-0">Chat with ${targetUser.first_name} ${targetUser.last_name}</h6>
+                        <div>
+                            <button class="btn btn-sm btn-link minimize-chat-btn" style="padding: 0 5px;">
+                                <i class="bi bi-dash"></i>
+                            </button>
+                            <button class="btn btn-sm btn-link close-chat-btn" style="padding: 0 5px;">
+                                <i class="bi bi-x"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div id="chat-messages-${roomId}" class="chat-messages" style="padding: 10px; overflow-y: auto; flex-grow: 1; height: 300px;">
+                        <div id="chat-status-${roomId}" class="text-center text-muted">Loading messages...</div>
+                    </div>
+                    <div class="chat-input" style="padding: 10px; border-top: 1px solid #dee2e6;">
+                        <div class="input-group">
+                            <input type="text" id="chat-input-${roomId}" class="form-control" placeholder="Type your message...">
+                            <button id="send-button-${roomId}" class="btn btn-primary">Send</button>
                         </div>
                     </div>
                 </div>
             `;
             
-            document.body.insertAdjacentHTML('beforeend', modalHtml);
-            chatModal = document.getElementById('chatModal');
+            document.body.insertAdjacentHTML('beforeend', chatWindowHtml);
+            chatWindow = document.getElementById(`chat-window-${roomId}`);
             
-            // Make the modal draggable
-            makeDraggable(chatModal);
+            // Make the chat window draggable
+            makeChatWindowDraggable(chatWindow);
+            
+            // Add event listeners for the minimize and close buttons
+            chatWindow.querySelector('.minimize-chat-btn').addEventListener('click', () => {
+                const messagesContainer = document.getElementById(`chat-messages-${roomId}`);
+                const inputContainer = chatWindow.querySelector('.chat-input');
+                
+                if (messagesContainer.style.display === 'none') {
+                    // Expand
+                    messagesContainer.style.display = 'block';
+                    inputContainer.style.display = 'block';
+                    chatWindow.style.height = 'auto';
+                    chatWindow.querySelector('.minimize-chat-btn i').className = 'bi bi-dash';
+                } else {
+                    // Minimize
+                    messagesContainer.style.display = 'none';
+                    inputContainer.style.display = 'none';
+                    chatWindow.style.height = 'auto';
+                    chatWindow.querySelector('.minimize-chat-btn i').className = 'bi bi-plus';
+                }
+            });
+            
+            chatWindow.querySelector('.close-chat-btn').addEventListener('click', () => {
+                chatWindow.remove();
+            });
         }
         
-        // Initialize the Bootstrap modal
-        const modal = new bootstrap.Modal(chatModal, {
-            backdrop: false
-        });
-        
         // Store the current room ID in a data attribute
-        chatModal.dataset.roomId = roomId;
+        chatWindow.dataset.roomId = roomId;
         
         // Load existing messages
-        loadChatMessages(roomId, state)
+        loadChatMessages(roomId, state, `chat-messages-${roomId}`, `chat-status-${roomId}`)
             .then(() => {
                 // Set up the send button event listener
-                const sendButton = document.getElementById('send-button');
+                const sendButton = document.getElementById(`send-button-${roomId}`);
                 if (sendButton) {
                     // Remove any existing event listeners
                     const newSendButton = sendButton.cloneNode(true);
                     sendButton.parentNode.replaceChild(newSendButton, sendButton);
                     
                     newSendButton.addEventListener('click', () => {
-                        const chatInput = document.getElementById('chat-input');
+                        const chatInput = document.getElementById(`chat-input-${roomId}`);
                         if (chatInput && chatInput.value.trim()) {
-                            sendChatMessage(roomId, chatInput.value.trim(), state)
+                            sendChatMessage(roomId, chatInput.value.trim(), state, `chat-messages-${roomId}`)
                                 .then(() => {
                                     chatInput.value = '';
                                 })
@@ -3826,7 +3850,7 @@ function openChatInterface(roomId, targetUser, state) {
                 }
                 
                 // Set up the chat input event listener for Enter key
-                const chatInput = document.getElementById('chat-input');
+                const chatInput = document.getElementById(`chat-input-${roomId}`);
                 if (chatInput) {
                     // Remove any existing event listeners
                     const newChatInput = chatInput.cloneNode(true);
@@ -3835,7 +3859,7 @@ function openChatInterface(roomId, targetUser, state) {
                     newChatInput.addEventListener('keypress', (event) => {
                         if (event.key === 'Enter' && !event.shiftKey) {
                             event.preventDefault();
-                            const sendButton = document.getElementById('send-button');
+                            const sendButton = document.getElementById(`send-button-${roomId}`);
                             if (sendButton) {
                                 sendButton.click();
                             }
@@ -3845,17 +3869,11 @@ function openChatInterface(roomId, targetUser, state) {
             })
             .catch(error => {
                 console.error('Error loading chat messages:', error);
-                const chatStatus = document.getElementById('chat-status');
+                const chatStatus = document.getElementById(`chat-status-${roomId}`);
                 if (chatStatus) {
                     chatStatus.textContent = 'Failed to load messages. Please try again.';
                 }
             });
-        
-        // Show the modal
-        modal.show();
-        
-        // Ensure the chat modal is on top of other modals
-        chatModal.style.zIndex = '1060';
         
     } catch (error) {
         console.error('Error opening chat interface:', error);
@@ -3863,23 +3881,20 @@ function openChatInterface(roomId, targetUser, state) {
     }
 }
 
-// Add a function to make elements draggable
-function makeDraggable(element) {
-    const modalDialog = element.querySelector('.modal-dialog');
+// Function to make chat windows draggable
+function makeChatWindowDraggable(element) {
     const handle = element.querySelector('.draggable-handle');
     
     let offsetX, offsetY, isDragging = false;
     
-    handle.style.cursor = 'move';
-    
     handle.addEventListener('mousedown', (e) => {
         isDragging = true;
-        const rect = modalDialog.getBoundingClientRect();
+        const rect = element.getBoundingClientRect();
         offsetX = e.clientX - rect.left;
         offsetY = e.clientY - rect.top;
         
         // Add a high z-index to ensure it stays on top while dragging
-        modalDialog.style.zIndex = '1070';
+        element.style.zIndex = '1070';
     });
     
     document.addEventListener('mousemove', (e) => {
@@ -3888,21 +3903,26 @@ function makeDraggable(element) {
         const x = e.clientX - offsetX;
         const y = e.clientY - offsetY;
         
-        modalDialog.style.position = 'absolute';
-        modalDialog.style.margin = '0';
-        modalDialog.style.left = `${x}px`;
-        modalDialog.style.top = `${y}px`;
+        // Ensure the chat window stays within the viewport
+        const maxX = window.innerWidth - element.offsetWidth;
+        const maxY = window.innerHeight - element.offsetHeight;
+        
+        const boundedX = Math.max(0, Math.min(x, maxX));
+        const boundedY = Math.max(0, Math.min(y, maxY));
+        
+        element.style.left = `${boundedX}px`;
+        element.style.top = `${boundedY}px`;
     });
     
     document.addEventListener('mouseup', () => {
         isDragging = false;
         // Reset to the normal z-index
-        modalDialog.style.zIndex = '1060';
+        element.style.zIndex = '1050';
     });
 }
 
-// Function to load chat messages for a specific room
-function loadChatMessages(roomId, state) {
+// Updated function to load chat messages for a specific room
+function loadChatMessages(roomId, state, messagesContainerId = 'chat-messages', statusElementId = 'chat-status') {
     console.log(`Loading messages for room ID: ${roomId}`);
     
     return apiFetch(`http://127.0.0.1:8000/api/addon/messages/?room=${roomId}`, {}, state.token)
@@ -3914,9 +3934,9 @@ function loadChatMessages(roomId, state) {
             console.log(`After filtering, ${filteredMessages.length} messages belong to room ${roomId}`);
             
             // Display messages in the chat container
-            const chatMessagesContainer = document.getElementById('chat-messages');
+            const chatMessagesContainer = document.getElementById(messagesContainerId);
             if (!chatMessagesContainer) {
-                console.error('Chat messages container not found');
+                console.error(`Chat messages container ${messagesContainerId} not found`);
                 return filteredMessages;
             }
             
@@ -3927,7 +3947,7 @@ function loadChatMessages(roomId, state) {
                 console.log('No messages to display for this room');
             } else {
                 filteredMessages.forEach(message => {
-                    displayMessage(message, state.user.id);
+                    displayMessage(message, state.user.id, messagesContainerId);
                 });
             }
             
@@ -3942,29 +3962,36 @@ function loadChatMessages(roomId, state) {
         });
 }
 
-// Function to display a message
-function displayMessage(message, currentUserId) {
-    const chatMessagesContainer = document.getElementById('chat-messages');
+// Updated function to display a message
+function displayMessage(message, currentUserId, messagesContainerId = 'chat-messages') {
+    const chatMessagesContainer = document.getElementById(messagesContainerId);
     if (!chatMessagesContainer) {
-        console.error('Chat messages container not found');
+        console.error(`Chat messages container ${messagesContainerId} not found`);
         return;
     }
     
     const messageElement = document.createElement('div');
     messageElement.classList.add('message');
+    messageElement.style.marginBottom = '10px';
+    messageElement.style.padding = '8px';
+    messageElement.style.borderRadius = '8px';
     
     // Add sender class if the message is from the current user
     if (message.user.id === parseInt(currentUserId)) {
         messageElement.classList.add('sender');
+        messageElement.style.backgroundColor = '#e3f2fd';
+        messageElement.style.marginLeft = '20%';
     } else {
         messageElement.classList.add('receiver');
+        messageElement.style.backgroundColor = '#f5f5f5';
+        messageElement.style.marginRight = '20%';
     }
     
     const timestamp = new Date(message.sent_at).toLocaleTimeString();
     
     messageElement.innerHTML = `
-        <div class="message-content">${message.content}</div>
-        <div class="message-meta">
+        <div class="message-content" style="word-break: break-word;">${message.content}</div>
+        <div class="message-meta" style="font-size: 0.8rem; color: #6c757d; display: flex; justify-content: space-between; margin-top: 5px;">
             <span class="message-sender">${message.user.first_name || message.user.username}</span>
             <span class="message-time">${timestamp}</span>
         </div>
@@ -3973,8 +4000,8 @@ function displayMessage(message, currentUserId) {
     chatMessagesContainer.appendChild(messageElement);
 }
 
-// Function to send a chat message
-async function sendChatMessage(roomId, content, state) {
+// Updated function to send a chat message
+async function sendChatMessage(roomId, content, state, messagesContainerId = 'chat-messages') {
     try {
         console.log(`Sending message to room ${roomId}: ${content}`);
         
@@ -3993,10 +4020,10 @@ async function sendChatMessage(roomId, content, state) {
         console.log('Message sent successfully:', message);
         
         // Display the message in the chat window
-        displayMessage(message, state.user.id);
+        displayMessage(message, state.user.id, messagesContainerId);
         
         // Scroll to the bottom of the chat container
-        const chatMessagesContainer = document.getElementById('chat-messages');
+        const chatMessagesContainer = document.getElementById(messagesContainerId);
         if (chatMessagesContainer) {
             chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
         }
