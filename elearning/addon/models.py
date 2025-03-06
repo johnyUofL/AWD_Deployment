@@ -33,6 +33,7 @@ class ChatParticipant(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='chat_rooms')
     joined_at = models.DateTimeField(auto_now_add=True)
     last_read_message = models.ForeignKey(ChatMessage, on_delete=models.SET_NULL, null=True, blank=True)
+    last_read = models.DateTimeField(null=True, blank=True)  # New field for timestamp of last read
     
     class Meta:
         unique_together = ('room', 'user')

@@ -3959,6 +3959,19 @@ function loadChatMessages(roomId, state, messagesContainerId = 'chat-messages', 
             // Scroll to the bottom of the chat container
             chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
             
+            // Mark messages as read
+            apiFetch(`http://127.0.0.1:8000/api/addon/messages/mark-read/?room=${roomId}`, {
+                method: 'PUT'
+            }, state.token)
+            .then(() => {
+                console.log('Messages marked as read');
+                // Update the unread count after marking messages as read
+                updateUnreadMessageCount(state);
+            })
+            .catch(error => {
+                console.warn('Could not mark messages as read:', error);
+            });
+            
             return filteredMessages;
         })
         .catch(error => {
@@ -4444,56 +4457,35 @@ function playNotificationSound() {
 // Function to update the unread message count
 async function updateUnreadMessageCount(state) {
     try {
-        // Get the last time we checked for messages
-        const lastChecked = localStorage.getItem('lastMessageCheck') || '2000-01-01T00:00:00Z';
-        
-        // Fetch all chat rooms where the user is a participant
-        const chatRooms = await apiFetch('http://127.0.0.1:8000/api/addon/chat-rooms/', {}, state.token);
-        
-        let totalNewMessages = 0;
-        
-        for (const room of chatRooms) {
-            // Fetch participants for this room
-            const participants = await apiFetch(`http://127.0.0.1:8000/api/addon/participants/?room=${room.id}`, {}, state.token);
-            
-            // Check if current user is a participant
-            const isParticipant = participants.some(p => p.user.id === parseInt(state.user.id));
-            
-            if (isParticipant) {
-                // Skip rooms that have an open chat window
-                const chatWindow = document.getElementById(`chat-window-${room.id}`);
-                if (chatWindow) {
-                    continue;
-                }
-                
-                // Get messages newer than the last check time
-                const messages = await apiFetch(
-                    `http://127.0.0.1:8000/api/addon/messages/?room=${room.id}&after=${lastChecked}`, 
-                    {}, 
-                    state.token
-                );
-                
-                // Count messages not from the current user
-                const newMessages = messages.filter(msg => msg.user.id !== parseInt(state.user.id));
-                totalNewMessages += newMessages.length;
-            }
-        }
+        // Fetch unread message count from the API
+        const response = await apiFetch('http://127.0.0.1:8000/api/addon/messages/unread/count/', {}, state.token);
+        const unreadCount = response.count || 0;
         
         // Update the notification badge
         const unreadBadge = document.getElementById('unread-message-count');
-        if (totalNewMessages > 0) {
-            unreadBadge.textContent = totalNewMessages > 99 ? '99+' : totalNewMessages;
-            unreadBadge.style.display = 'block';
+        if (unreadBadge) {
+            if (unreadCount > 0) {
+                unreadBadge.textContent = unreadCount > 99 ? '99+' : unreadCount;
+                unreadBadge.style.display = 'block';
+                
+                // Change the icon color to indicate new messages
+                document.getElementById('chat-notification-icon').classList.remove('bg-primary');
+                document.getElementById('chat-notification-icon').classList.add('bg-danger');
+                
+                // Play notification sound if there are new messages since last check
+                if (state.lastUnreadCount !== undefined && unreadCount > state.lastUnreadCount) {
+                    playNotificationSound();
+                }
+            } else {
+                unreadBadge.style.display = 'none';
+                
+                // Reset the icon color
+                document.getElementById('chat-notification-icon').classList.remove('bg-danger');
+                document.getElementById('chat-notification-icon').classList.add('bg-primary');
+            }
             
-            // Change the icon color to indicate new messages
-            document.getElementById('chat-notification-icon').classList.remove('bg-primary');
-            document.getElementById('chat-notification-icon').classList.add('bg-danger');
-        } else {
-            unreadBadge.style.display = 'none';
-            
-            // Reset the icon color
-            document.getElementById('chat-notification-icon').classList.remove('bg-danger');
-            document.getElementById('chat-notification-icon').classList.add('bg-primary');
+            // Store the current unread count
+            state.lastUnreadCount = unreadCount;
         }
     } catch (error) {
         console.error('Error updating unread message count:', error);
