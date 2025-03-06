@@ -3,7 +3,7 @@ import { apiFetch } from './api.js';
 import { renderLogin, renderSignup, updateNav, renderUserInfoModal } from './ui.js';
 import { fetchCourses } from './courses.js';
 import { renderTeacherDashboard } from './teacher.js';
-import { showToast } from '../components/toast.js';
+
 
 export async function login(state) {
     const usernameInput = document.getElementById('username').value;
