@@ -412,18 +412,18 @@ function openChatInterface(roomId, targetUser, state) {
         
         if (chatWindow) {
             console.log("Chat window already exists, making it visible");
-            chatWindow.style.display = 'block';
+            chatWindow.style.display = 'flex';
             
             // If minimized, restore it
-            const chatBody = chatWindow.querySelector('.chat-body');
-            const chatFooter = chatWindow.querySelector('.chat-footer');
+            const chatBody = chatWindow.querySelector('.chat-messages');
+            const chatFooter = chatWindow.querySelector('.chat-input');
             if (chatBody.style.display === 'none') {
                 chatBody.style.display = 'block';
-                chatFooter.style.display = 'flex';
+                chatFooter.style.display = 'block';
             }
             
             // Focus the input field
-            const inputField = chatWindow.querySelector('.chat-input');
+            const inputField = chatWindow.querySelector('input');
             if (inputField) inputField.focus();
             
             return;
@@ -431,42 +431,34 @@ function openChatInterface(roomId, targetUser, state) {
         
         console.log("Creating new chat window");
         
-        // Create chat window
-        chatWindow = document.createElement('div');
-        chatWindow.id = `chat-window-${roomId}`;
-        chatWindow.className = 'chat-window';
-        chatWindow.style.position = 'fixed';
-        chatWindow.style.bottom = '20px';
-        chatWindow.style.right = '20px';
-        chatWindow.style.width = '300px';
-        chatWindow.style.height = '400px';
-        chatWindow.style.backgroundColor = 'white';
-        chatWindow.style.border = '1px solid #ccc';
-        chatWindow.style.borderRadius = '5px';
-        chatWindow.style.boxShadow = '0 0 10px rgba(0,0,0,0.1)';
-        chatWindow.style.display = 'flex';
-        chatWindow.style.flexDirection = 'column';
-        chatWindow.style.zIndex = '1000';
-        
-        chatWindow.innerHTML = `
-            <div class="chat-header" style="padding: 10px; background-color: #f8f9fa; border-bottom: 1px solid #dee2e6; display: flex; justify-content: space-between; align-items: center; cursor: move;">
-                <span>Chat with ${targetUser.username}</span>
-                <div class="chat-controls">
-                    <button class="minimize-chat-btn" style="background: none; border: none; cursor: pointer;"><i class="bi bi-dash"></i></button>
-                    <button class="close-chat-btn" style="background: none; border: none; cursor: pointer;"><i class="bi bi-x"></i></button>
+        // Create chat window with the same styling as teacher.js
+        const chatWindowHtml = `
+            <div id="chat-window-${roomId}" class="chat-window" style="position: fixed; bottom: 20px; right: 20px; width: 350px; z-index: 1050; background: white; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.2); display: flex; flex-direction: column; max-height: 500px;">
+                <div class="chat-header draggable-handle" style="padding: 10px; background: #f8f9fa; border-radius: 8px 8px 0 0; cursor: move; display: flex; justify-content: space-between; align-items: center;">
+                    <h6 class="m-0">Chat with ${targetUser.first_name} ${targetUser.last_name}</h6>
+                    <div>
+                        <button class="btn btn-sm btn-link minimize-chat-btn" style="padding: 0 5px;">
+                            <i class="bi bi-dash"></i>
+                        </button>
+                        <button class="btn btn-sm btn-link close-chat-btn" style="padding: 0 5px;">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    </div>
                 </div>
-            </div>
-            <div class="chat-body" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
-                <div id="chat-messages-${roomId}" class="chat-messages" style="flex: 1; overflow-y: auto; padding: 10px; display: flex; flex-direction: column;"></div>
-                <div id="chat-status-${roomId}" class="chat-status" style="padding: 5px 10px; font-size: 0.8rem; color: #6c757d; text-align: center;"></div>
-            </div>
-            <div class="chat-footer" style="padding: 10px; border-top: 1px solid #dee2e6; display: flex;">
-                <input type="text" id="chat-input-${roomId}" class="chat-input" placeholder="Type a message..." style="flex: 1; padding: 5px; border: 1px solid #ced4da; border-radius: 4px;">
-                <button id="chat-send-${roomId}" class="chat-send-btn" style="margin-left: 5px; background-color: #007bff; color: white; border: none; border-radius: 4px; padding: 5px 10px; cursor: pointer;"><i class="bi bi-send"></i></button>
+                <div id="chat-messages-${roomId}" class="chat-messages" style="padding: 10px; overflow-y: auto; flex-grow: 1; height: 300px;">
+                    <div id="chat-status-${roomId}" class="text-center text-muted">Loading messages...</div>
+                </div>
+                <div class="chat-input" style="padding: 10px; border-top: 1px solid #dee2e6;">
+                    <div class="input-group">
+                        <input type="text" id="chat-input-${roomId}" class="form-control" placeholder="Type your message...">
+                        <button id="send-button-${roomId}" class="btn btn-primary">Send</button>
+                    </div>
+                </div>
             </div>
         `;
         
-        document.body.appendChild(chatWindow);
+        document.body.insertAdjacentHTML('beforeend', chatWindowHtml);
+        chatWindow = document.getElementById(`chat-window-${roomId}`);
         
         // Make chat window draggable
         makeChatWindowDraggable(chatWindow);
@@ -482,19 +474,19 @@ function openChatInterface(roomId, targetUser, state) {
         });
         
         chatWindow.querySelector('.minimize-chat-btn').addEventListener('click', () => {
-            const chatBody = chatWindow.querySelector('.chat-body');
-            const chatFooter = chatWindow.querySelector('.chat-footer');
+            const chatBody = chatWindow.querySelector('.chat-messages');
+            const chatFooter = chatWindow.querySelector('.chat-input');
             
             if (chatBody.style.display === 'none') {
                 chatBody.style.display = 'block';
-                chatFooter.style.display = 'flex';
+                chatFooter.style.display = 'block';
             } else {
                 chatBody.style.display = 'none';
                 chatFooter.style.display = 'none';
             }
         });
         
-        const sendButton = chatWindow.querySelector(`#chat-send-${roomId}`);
+        const sendButton = chatWindow.querySelector(`#send-button-${roomId}`);
         const inputField = chatWindow.querySelector(`#chat-input-${roomId}`);
         
         sendButton.addEventListener('click', () => {
@@ -639,42 +631,57 @@ async function loadChatMessages(roomId, state) {
 
 // Display a message in the chat window
 function displayMessage(message, currentUserId, messagesContainerId) {
-    const messagesContainer = document.getElementById(messagesContainerId);
-    if (!messagesContainer) return;
+    const chatMessagesContainer = document.getElementById(messagesContainerId);
+    if (!chatMessagesContainer) {
+        console.error(`Chat messages container ${messagesContainerId} not found`);
+        return;
+    }
+    
+    // Remove the status message if it exists
+    const statusElement = document.getElementById(`chat-status-${messagesContainerId.split('-').pop()}`);
+    if (statusElement && statusElement.parentNode === chatMessagesContainer) {
+        chatMessagesContainer.removeChild(statusElement);
+    }
+    
+    const messageElement = document.createElement('div');
+    messageElement.classList.add('message');
+    messageElement.style.marginBottom = '10px';
+    messageElement.style.padding = '8px';
+    messageElement.style.borderRadius = '8px';
     
     // Make sure we have the correct structure for the message
     const userId = message.user ? message.user.id : (message.user_id || 0);
     const isCurrentUser = userId == currentUserId;
     
-    const messageElement = document.createElement('div');
-    messageElement.className = `message ${isCurrentUser ? 'message-sent' : 'message-received'}`;
-    messageElement.style.margin = '5px 0';
-    messageElement.style.padding = '8px 12px';
-    messageElement.style.borderRadius = '10px';
-    messageElement.style.maxWidth = '80%';
-    messageElement.style.wordBreak = 'break-word';
-    
-    // Set styles for the message container
-    messagesContainer.style.display = 'flex';
-    messagesContainer.style.flexDirection = 'column';
-    
-    // Set alignment based on sender
-    messageElement.style.alignSelf = isCurrentUser ? 'flex-end' : 'flex-start';
-    messageElement.style.backgroundColor = isCurrentUser ? '#007bff' : '#f1f1f1';
-    messageElement.style.color = isCurrentUser ? 'white' : 'black';
+    // Add sender class if the message is from the current user
+    if (isCurrentUser) {
+        messageElement.classList.add('sender');
+        messageElement.style.backgroundColor = '#e3f2fd';
+        messageElement.style.marginLeft = '20%';
+    } else {
+        messageElement.classList.add('receiver');
+        messageElement.style.backgroundColor = '#f5f5f5';
+        messageElement.style.marginRight = '20%';
+    }
     
     // Format timestamp
-    const timestamp = new Date(message.timestamp || message.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const timestamp = new Date(message.timestamp || message.sent_at).toLocaleTimeString();
+    
+    // Get the sender name
+    const senderName = message.user ? 
+        (message.user.first_name || message.user.username) : 
+        'Unknown';
     
     messageElement.innerHTML = `
-        <div class="message-content">
-            <div class="message-text">${message.content}</div>
-            <div class="message-time" style="font-size: 0.7rem; opacity: 0.7; text-align: right;">${timestamp}</div>
+        <div class="message-content" style="word-break: break-word;">${message.content}</div>
+        <div class="message-meta" style="font-size: 0.8rem; color: #6c757d; display: flex; justify-content: space-between; margin-top: 5px;">
+            <span class="message-sender">${senderName}</span>
+            <span class="message-time">${timestamp}</span>
         </div>
     `;
     
-    messagesContainer.appendChild(messageElement);
-    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    chatMessagesContainer.appendChild(messageElement);
+    chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
 }
 
 // Send a chat message
