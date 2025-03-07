@@ -7,9 +7,9 @@ This project is an eLearning platform built with Django and Django Rest Framewor
 Before you begin, ensure you have met the following requirements:
 - Project was tested using Windows 11
 - Visual Studio Code
-- Python 3.8 or higher (path needs to be included in the environmental variables)
+- Python 3.10 (path needs to be included in the environmental variables)
 - pip (Python package installer)
-- Node.js and npm (for frontend dependencies)
+
 
 ## Installation Steps
 
@@ -67,10 +67,10 @@ Open your web browser and go to `http://127.0.0.1:8000/` to access the applicati
 
 ## Test Credentials
 
-### Admin (Superuser)
+### Admin (Superuser) (Used the teacher johny as a super user)
 This needs to be created in terminal to be able to open admin panel.
 
-### Teacher
+### Teacher (Superuser)
 - Username: johny
 - Password: testing123
 
