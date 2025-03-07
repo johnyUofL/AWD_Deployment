@@ -11,7 +11,7 @@ router.register(r'participants', ChatParticipantViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
-    # Use function-based views for the custom actions
+    # views for the custom actions
     path('messages/unread/count/', get_unread_count, name='unread-count'),
     path('messages/mark-read/', mark_messages_as_read, name='mark-read'),
 ]
