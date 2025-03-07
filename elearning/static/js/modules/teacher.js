@@ -1414,7 +1414,7 @@ export async function editVideoMaterial(materialId, courseId, state) {
                 }
                 
                 if (videoDetails) {
-                    // Update existing video resource
+                    // Update video resource
                     console.log('Updating video resource:', videoDetails.id);
                     await apiFetch(`http://127.0.0.1:8000/api/core/video-resources/${videoDetails.id}/`, {
                         method: 'PATCH',
@@ -4055,97 +4055,244 @@ async function sendChatMessage(roomId, content, state, messagesContainerId = 'ch
 
 // Add a chat notification system to the bottom right corner
 function initializeChatNotificationSystem(state) {
-    console.log("Initializing chat notification system...");
+    console.log('Initializing chat notification system');
     
-    // Check if the chat icon already exists
+    // Check if the chat notification icon already exists
     if (document.getElementById('chat-notification-icon')) {
-        console.log("Chat notification icon already exists");
-        return; // Already initialized
+        console.log('Chat notification system already initialized');
+        return;
     }
     
-    // Create the chat notification icon and panel
-    const chatIconHtml = `
-        <div id="chat-notification-container" style="position: fixed; bottom: 20px; right: 20px; z-index: 1040;">
-            <div id="chat-notification-icon" class="rounded-circle bg-primary d-flex justify-content-center align-items-center" 
-                 style="width: 50px; height: 50px; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.2);">
-                <i class="bi bi-chat-dots text-white" style="font-size: 1.5rem;"></i>
-                <span id="unread-message-count" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" 
-                      style="display: none;">
-                    0
-                </span>
+    // Create the chat notification icon and panel with additional bell and status icons
+    const chatNotificationHtml = `
+        <div id="chat-notification-container" style="position: fixed; bottom: 20px; right: 20px; z-index: 1040; display: flex; flex-direction: column; align-items: flex-end; gap: 10px;">
+            <!-- Bell Notification Icon -->
+            <div id="notification-bell-icon" class="bg-primary rounded-circle d-flex justify-content-center align-items-center" 
+                style="width: 50px; height: 50px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+                <i class="bi bi-bell text-white" style="font-size: 1.5rem;"></i>
+                <span id="notification-count" class="badge bg-danger rounded-pill position-absolute" 
+                    style="top: -5px; right: -5px; display: none;">0</span>
             </div>
             
-            <div id="chat-list-panel" class="card" 
-                 style="position: absolute; bottom: 60px; right: 0; width: 300px; max-height: 400px; display: none; overflow-y: auto;">
-                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                    <h6 class="m-0">Your Conversations</h6>
-                    <button id="refresh-chats-btn" class="btn btn-sm btn-link text-white p-0">
+            <!-- Status Update Icon -->
+            <div id="status-update-icon" class="bg-success rounded-circle d-flex justify-content-center align-items-center" 
+                style="width: 50px; height: 50px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+                <i class="bi bi-pencil-square text-white" style="font-size: 1.5rem;"></i>
+            </div>
+            
+            <!-- Chat Icon -->
+            <div id="chat-notification-icon" class="bg-primary rounded-circle d-flex justify-content-center align-items-center" 
+                style="width: 50px; height: 50px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+                <i class="bi bi-chat-dots text-white" style="font-size: 1.5rem;"></i>
+                <span id="unread-message-count" class="badge bg-danger rounded-pill position-absolute" 
+                    style="top: -5px; right: -5px; display: none;">0</span>
+            </div>
+            
+            <!-- Chat List Panel  -->
+            <div id="chat-list-panel" class="bg-white rounded shadow" 
+                style="position: absolute; bottom: 60px; right: 0; width: 300px; max-height: 400px; display: none; overflow-y: auto; border: 1px solid #dee2e6;">
+                <div class="d-flex justify-content-between align-items-center p-2 border-bottom">
+                    <h6 class="m-0">Conversations</h6>
+                    <div>
+                        <button id="refresh-chat-rooms" class="btn btn-sm btn-link" title="Refresh">
                         <i class="bi bi-arrow-clockwise"></i>
                     </button>
                 </div>
-                <div class="card-body p-0">
-                    <div id="chat-rooms-list" class="list-group list-group-flush">
+                </div>
+                <div id="chat-rooms-list" class="p-2">
                         <div class="text-center p-3">
                             <div class="spinner-border spinner-border-sm text-primary" role="status">
                                 <span class="visually-hidden">Loading...</span>
                             </div>
-                            <p class="text-muted mb-0">Loading your conversations...</p>
+                        <p class="text-muted mb-0">Loading conversations...</p>
                         </div>
-                    </div>
-                </div>
-                <div class="card-footer">
-                    <button id="view-all-users-btn" class="btn btn-sm btn-outline-primary w-100">
-                        <i class="bi bi-people"></i> Start New Conversation
-                    </button>
                 </div>
             </div>
         </div>
     `;
     
-    console.log("Adding chat icon to DOM");
-    // Add the chat icon to the DOM
-    document.body.insertAdjacentHTML('beforeend', chatIconHtml);
+    document.body.insertAdjacentHTML('beforeend', chatNotificationHtml);
+    console.log('Chat and notification icons added to DOM');
     
-    // Add event listeners
+    // Add event listeners for chat icon 
     document.getElementById('chat-notification-icon').addEventListener('click', () => {
-        console.log("Chat icon clicked");
+        console.log('Chat icon clicked');
         const chatListPanel = document.getElementById('chat-list-panel');
-        if (chatListPanel.style.display === 'none') {
-            // Show the panel and load chat rooms
-            chatListPanel.style.display = 'block';
+        const isVisible = chatListPanel.style.display === 'block';
+        
+        chatListPanel.style.display = isVisible ? 'none' : 'block';
+        
+        if (!isVisible) {
+            // Load chat rooms when the panel is opened
             loadChatRooms(state);
             
-            // Reset the unread count when opening the panel
-            document.getElementById('unread-message-count').style.display = 'none';
-            document.getElementById('unread-message-count').textContent = '0';
-        } else {
-            // Hide the panel
-            chatListPanel.style.display = 'none';
+            // Reset the unread count when opening the chat list
+            const unreadBadge = document.getElementById('unread-message-count');
+            if (unreadBadge) {
+                unreadBadge.style.display = 'none';
+                unreadBadge.textContent = '0';
+                
+                // Reset the icon color
+                document.getElementById('chat-notification-icon').classList.remove('bg-danger');
+                document.getElementById('chat-notification-icon').classList.add('bg-primary');
+                
+                // Update the last unread count
+                state.lastUnreadCount = 0;
+            }
         }
     });
     
-    document.getElementById('refresh-chats-btn').addEventListener('click', () => {
+    // Add event listener for notification bell icon
+    document.getElementById('notification-bell-icon').addEventListener('click', () => {
+        console.log('Notification bell clicked');
+        // Show a placeholder modal for now
+        showNotificationsModal(state);
+    });
+    
+    // Add event listener for status update icon
+    document.getElementById('status-update-icon').addEventListener('click', () => {
+        console.log('Status update icon clicked');
+        // Show a placeholder modal for now
+        showStatusUpdateModal(state);
+    });
+    
+    // Add refresh button event listener
+    document.getElementById('refresh-chat-rooms').addEventListener('click', () => {
         loadChatRooms(state);
     });
     
-    document.getElementById('view-all-users-btn').addEventListener('click', () => {
-        // Hide the chat list panel
-        document.getElementById('chat-list-panel').style.display = 'none';
-        
-        // Show the users modal to start a new conversation
-        viewUsers(state);
-    });
-    
-    console.log("Setting up periodic message checking");
-    // Set up periodic checking for new messages
-    setInterval(() => {
+    // Start checking for new messages immediately 
         checkForNewMessages(state);
-    }, 30000); // Check every 30 seconds
     
-    // Initial check for new messages
+    // Set up a polling interval for checking new messages 
+    if (!state.globalPollingInterval) {
+        state.globalPollingInterval = setInterval(() => {
     checkForNewMessages(state);
+        }, 3000); // Check every 3 seconds
+    }
+}
+
+// Placeholder function for notifications modal
+function showNotificationsModal(state) {
+    // Create a modal for notifications
+    const modalHtml = `
+        <div class="modal fade" id="notificationsModal" tabindex="-1" aria-labelledby="notificationsModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="notificationsModalLabel">Notifications</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="text-muted text-center">Notification functionality will be implemented soon.</p>
+                        <div class="list-group">
+                            <div class="list-group-item">
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h6 class="mb-1">New assignment submission</h6>
+                                    <small class="text-muted">3 days ago</small>
+                                </div>
+                                <p class="mb-1">A student has submitted an assignment in your course.</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-primary">Mark All as Read</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
     
-    console.log("Chat notification system initialization complete");
+    // Add the modal to the DOM if it doesn't exist
+    if (!document.getElementById('notificationsModal')) {
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+    }
+    
+    // Show the modal
+    const modal = new bootstrap.Modal(document.getElementById('notificationsModal'));
+    modal.show();
+}
+
+// Placeholder function for status update modal
+function showStatusUpdateModal(state) {
+    // Create a modal for status updates
+    const modalHtml = `
+        <div class="modal fade" id="statusUpdateModal" tabindex="-1" aria-labelledby="statusUpdateModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="statusUpdateModalLabel">Update Your Status</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="status-update-form">
+                            <div class="mb-3">
+                                <label for="status-text" class="form-label">What's on your mind?</label>
+                                <textarea class="form-control" id="status-text" rows="3" placeholder="Share an update with your students..."></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="status-visibility" class="form-label">Visibility</label>
+                                <select class="form-select" id="status-visibility">
+                                    <option value="all">All Students</option>
+                                    <option value="course">Specific Course</option>
+                                </select>
+                            </div>
+                            <div class="mb-3" id="course-selection-container" style="display: none;">
+                                <label for="course-selection" class="form-label">Select Course</label>
+                                <select class="form-select" id="course-selection">
+                                    <option value="">Loading courses...</option>
+                                </select>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" id="post-status-btn">Post Update</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add the modal to the DOM if it doesn't exist
+    if (!document.getElementById('statusUpdateModal')) {
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+        
+        // Add event listener for visibility change
+        document.getElementById('status-visibility').addEventListener('change', (e) => {
+            const courseSelectionContainer = document.getElementById('course-selection-container');
+            if (e.target.value === 'course') {
+                courseSelectionContainer.style.display = 'block';
+                // Here you would load the teacher's courses
+                // loadTeacherCoursesForSelection(state);
+            } else {
+                courseSelectionContainer.style.display = 'none';
+            }
+        });
+        
+        // Add event listener for post button
+        document.getElementById('post-status-btn').addEventListener('click', () => {
+            const statusText = document.getElementById('status-text').value.trim();
+            if (statusText) {
+                console.log('Status update to be posted:', statusText);
+                // Here you would implement the actual status posting
+                // postStatusUpdate(statusText, state);
+                
+                // Close the modal
+                bootstrap.Modal.getInstance(document.getElementById('statusUpdateModal')).hide();
+                
+                // Show success message
+                alert('Status update functionality will be implemented soon.');
+            } else {
+                alert('Please enter a status update.');
+            }
+        });
+    }
+    
+    // Show the modal
+    const modal = new bootstrap.Modal(document.getElementById('statusUpdateModal'));
+    modal.show();
 }
 
 // Function to load chat rooms
@@ -4371,7 +4518,7 @@ async function checkForNewMessages(state) {
             }
         }
         
-        // If we still don't have a user object, return
+        // return
         if (!state.user || !state.user.id) {
             console.error('User information not available for message check');
             return;

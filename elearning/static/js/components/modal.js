@@ -14,7 +14,7 @@
 export function showModal(options) {
     const { id, title, body, buttons = [], size = '' } = options;
     
-    // Remove existing modal with same ID if it exists
+    // Remove modal with same ID if it exists
     const existingModal = document.getElementById(id);
     if (existingModal) {
         existingModal.remove();

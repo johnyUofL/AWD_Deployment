@@ -454,7 +454,7 @@ function openChatInterface(roomId, targetUser, state) {
         
         console.log("Creating new chat window");
         
-        // Create chat window with the same styling as teacher.js
+        // Create chat window 
         const chatWindowHtml = `
             <div id="chat-window-${roomId}" class="chat-window" style="position: fixed; bottom: 20px; right: 20px; width: 350px; z-index: 1050; background: white; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.2); display: flex; flex-direction: column; max-height: 500px;">
                 <div class="chat-header draggable-handle" style="padding: 10px; background: #f8f9fa; border-radius: 8px 8px 0 0; cursor: move; display: flex; justify-content: space-between; align-items: center;">
@@ -530,7 +530,7 @@ function openChatInterface(roomId, targetUser, state) {
             }
         });
         
-        // Load existing messages
+        // Load messages
         loadChatMessages(roomId, state);
         
         // Set up polling for new messages
@@ -634,7 +634,7 @@ async function loadChatMessages(roomId, state) {
             
             console.log(`Marking messages as read for room ID: ${roomIdNum}`);
             
-            // Try a different URL format - use the same format as the unread count endpoint
+          
             const markReadUrl = `http://127.0.0.1:8000/api/addon/messages/mark-read/?room=${roomIdNum}`;
             console.log(`Trying to mark messages as read with URL: ${markReadUrl}`);
             
@@ -654,7 +654,7 @@ async function loadChatMessages(roomId, state) {
             } else {
                 console.warn(`Failed to mark messages as read: ${markReadResponse.status} ${markReadResponse.statusText}`);
                 
-                // If the status is 404 (Not Found), the endpoint might not exist
+              
                 if (markReadResponse.status === 404) {
                     console.error('Endpoint not found. Check the URL and server configuration.');
                 }
@@ -666,16 +666,14 @@ async function loadChatMessages(roomId, state) {
             }, 500);
         } catch (error) {
             console.warn('Could not mark messages as read:', error);
-            // Still update the unread count even if marking as read fails
+           
             await checkForNewMessages(state);
         }
         
-        // Always update the unread count, even if mark-read fails
-        // This is the key difference from the previous implementation
+ 
         await checkForNewMessages(state);
         
-        // Also manually reset the unread count for this room
-        // This ensures the notification count is reset even if the API call fails
+
         const unreadBadge = document.getElementById('unread-message-count');
         if (unreadBadge) {
             unreadBadge.style.display = 'none';
@@ -755,13 +753,31 @@ function displayMessage(message, currentUserId, messagesContainerId) {
     chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
 }
 
-// Function to send a chat message
-async function sendChatMessage(roomId, content, state, messagesContainerId = 'chat-messages') {
+// Send a chat message
+async function sendChatMessage(roomId, content, state, messagesContainerId) {
     try {
         console.log(`Sending message to room ${roomId}: ${content}`);
         
-        // Create the message via API
-        const message = await apiFetch('http://127.0.0.1:8000/api/addon/messages/', {
+        // Create a temporary message object for immediate display
+        const tempMessage = {
+            id: 'temp-' + Date.now(),
+            content: content,
+            user: state.user,
+            sent_at: new Date().toISOString(),
+            isTemp: true // Flag to identify temporary messages
+        };
+        
+        // Display the temporary message immediately
+        displayMessage(tempMessage, state.user.id, messagesContainerId);
+        
+        // Scroll to bottom
+        const chatMessagesContainer = document.getElementById(messagesContainerId);
+        if (chatMessagesContainer) {
+            chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
+        }
+        
+        // Send the message to the server
+        const message = await apiFetch(`http://127.0.0.1:8000/api/addon/messages/`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -772,20 +788,33 @@ async function sendChatMessage(roomId, content, state, messagesContainerId = 'ch
             })
         }, state.token);
         
-        console.log('Message sent successfully:', message);
+        console.log("Message sent successfully:", message);
         
-        // Display the message in the chat window
-        displayMessage(message, state.user.id, messagesContainerId);
-        
-        // Scroll to the bottom of the chat container
-        const chatMessagesContainer = document.getElementById(messagesContainerId);
-        if (chatMessagesContainer) {
-            chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
+        // If the temporary message is still in the DOM, replace it with the real message
+        const tempElement = document.getElementById(`message-${tempMessage.id}`);
+        if (tempElement && !tempElement.classList.contains('error')) {
+            // Replace the temporary message with the real one
+            displayMessage(message, state.user.id, messagesContainerId);
+            tempElement.remove();
         }
+        
+        // Trigger an immediate check for new messages for other users
+        setTimeout(() => {
+            checkForNewMessages(state);
+        }, 500);
         
         return message;
     } catch (error) {
         console.error('Error sending message:', error);
+        
+        // Mark the temporary message as failed
+        const tempElement = document.getElementById(`message-${tempMessage.id}`);
+        if (tempElement) {
+            tempElement.classList.add('error');
+            tempElement.querySelector('.message-content').innerHTML += 
+                ' <span class="text-danger">(Failed to send)</span>';
+        }
+        
         throw error;
     }
 }
@@ -794,7 +823,7 @@ async function sendChatMessage(roomId, content, state, messagesContainerId = 'ch
 function setupMessagePolling(roomId, state) {
     console.log(`Set up message polling for room ${roomId}`);
     
-    // Clear any existing polling interval for this room
+    // Clear any polling interval for this room
     if (state.pollingIntervals && state.pollingIntervals[roomId]) {
         clearInterval(state.pollingIntervals[roomId]);
     }
@@ -804,16 +833,16 @@ function setupMessagePolling(roomId, state) {
         state.pollingIntervals = {};
     }
     
-    // Set up a new polling interval - reduce from 5000ms to 2000ms (2 seconds)
+  
     state.pollingIntervals[roomId] = setInterval(() => {
         pollForNewMessages(roomId, state);
-    }, 2000); // Poll every 2 seconds instead of 5
+    }, 2000); 
     
-    // Also set up a global polling interval for all messages if it doesn't exist
+
     if (!state.globalPollingInterval) {
         state.globalPollingInterval = setInterval(() => {
             checkForNewMessages(state);
-        }, 3000); // Check for new messages every 3 seconds
+        }, 3000); 
     }
 }
 
@@ -874,25 +903,19 @@ async function pollForNewMessages(roomId, state) {
 // Function to play a notification sound
 function playNotificationSound() {
     try {
-        // Create an audio element
         const audio = new Audio('/static/sounds/notification.mp3');
-        audio.volume = 0.5;
+        audio.volume = 0.5; // Set volume to 50%
         audio.play().catch(error => {
-            console.warn('Could not play notification sound:', error);
+            console.error('Error playing notification sound:', error);
         });
     } catch (error) {
-        console.warn('Error playing notification sound:', error);
+        console.error('Error creating audio object:', error);
     }
 }
 
-// Add a function to initialize the chat notification system
+// initialize the chat notification system
 function initializeChatNotificationSystem(state) {
     console.log('Initializing chat notification system');
-    
-    // Initialize readRooms object if it doesn't exist
-    if (!state.readRooms) {
-        state.readRooms = {};
-    }
     
     // Check if the chat notification icon already exists
     if (document.getElementById('chat-notification-icon')) {
@@ -900,15 +923,32 @@ function initializeChatNotificationSystem(state) {
         return;
     }
     
-    // Create the chat notification icon and panel
+    // bell and status icons
     const chatNotificationHtml = `
-        <div id="chat-notification-container" style="position: fixed; bottom: 20px; right: 20px; z-index: 1040;">
+        <div id="chat-notification-container" style="position: fixed; bottom: 20px; right: 20px; z-index: 1040; display: flex; flex-direction: column; align-items: flex-end; gap: 10px;">
+            <!-- Bell Notification Icon -->
+            <div id="notification-bell-icon" class="bg-primary rounded-circle d-flex justify-content-center align-items-center" 
+                style="width: 50px; height: 50px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+                <i class="bi bi-bell text-white" style="font-size: 1.5rem;"></i>
+                <span id="notification-count" class="badge bg-danger rounded-pill position-absolute" 
+                    style="top: -5px; right: -5px; display: none;">0</span>
+            </div>
+            
+            <!-- Status Update Icon -->
+            <div id="status-update-icon" class="bg-success rounded-circle d-flex justify-content-center align-items-center" 
+                style="width: 50px; height: 50px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+                <i class="bi bi-pencil-square text-white" style="font-size: 1.5rem;"></i>
+            </div>
+            
+            <!-- Chat Icon -->
             <div id="chat-notification-icon" class="bg-primary rounded-circle d-flex justify-content-center align-items-center" 
                 style="width: 50px; height: 50px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
                 <i class="bi bi-chat-dots text-white" style="font-size: 1.5rem;"></i>
                 <span id="unread-message-count" class="badge bg-danger rounded-pill position-absolute" 
                     style="top: -5px; right: -5px; display: none;">0</span>
             </div>
+            
+            <!-- Chat List Panel (existing) -->
             <div id="chat-list-panel" class="bg-white rounded shadow" 
                 style="position: absolute; bottom: 60px; right: 0; width: 300px; max-height: 400px; display: none; overflow-y: auto; border: 1px solid #dee2e6;">
                 <div class="d-flex justify-content-between align-items-center p-2 border-bottom">
@@ -916,9 +956,6 @@ function initializeChatNotificationSystem(state) {
                     <div>
                         <button id="refresh-chat-rooms" class="btn btn-sm btn-link" title="Refresh">
                             <i class="bi bi-arrow-clockwise"></i>
-                        </button>
-                        <button id="start-new-chat" class="btn btn-sm btn-primary">
-                            <i class="bi bi-plus"></i> New
                         </button>
                     </div>
                 </div>
@@ -935,9 +972,9 @@ function initializeChatNotificationSystem(state) {
     `;
     
     document.body.insertAdjacentHTML('beforeend', chatNotificationHtml);
-    console.log('Chat icon added to DOM');
+    console.log('Chat and notification icons added to DOM');
     
-    // Add event listeners
+    // Add event listeners for chat icon
     document.getElementById('chat-notification-icon').addEventListener('click', () => {
         console.log('Chat icon clicked');
         const chatListPanel = document.getElementById('chat-list-panel');
@@ -965,175 +1002,300 @@ function initializeChatNotificationSystem(state) {
         }
     });
     
-    // Add refresh button event listener
+    // Add event listener for notification bell icon
+    document.getElementById('notification-bell-icon').addEventListener('click', () => {
+        console.log('Notification bell clicked');
+        // Show a placeholder modal for now
+        showNotificationsModal(state);
+    });
+    
+    // Add event listener for status update icon
+    document.getElementById('status-update-icon').addEventListener('click', () => {
+        console.log('Status update icon clicked');
+        // Show a placeholder modal for now
+        showStatusUpdateModal(state);
+    });
+    
+    // Add refresh button event listener 
     document.getElementById('refresh-chat-rooms').addEventListener('click', () => {
         loadChatRooms(state);
     });
     
-    // Start new chat button
-    document.getElementById('start-new-chat').addEventListener('click', () => {
-        // Show a modal to select a user to chat with
-        alert('This feature is coming soon!');
-    });
-    
-    // Initialize WebSocket connection for notifications
-    initializeWebSocketNotifications(state);
-    
-    // We'll still keep the polling as a fallback
-    // Start checking for new messages immediately
+    // Start checking for new messages immediately 
     checkForNewMessages(state);
     
-    // Set up a polling interval for checking new messages (as a fallback)
-    if (!state.globalPollingInterval) {
+    // Set up a polling interval for checking new messages 
         state.globalPollingInterval = setInterval(() => {
             checkForNewMessages(state);
-        }, 10000); // Check every 10 seconds instead of 3
-    }
+        }, 300); 
 }
 
-// Function to initialize WebSocket for notifications
-function initializeWebSocketNotifications(state) {
-    // Close any existing connection
-    if (state.notificationSocket && state.notificationSocket.readyState !== WebSocket.CLOSED) {
-        state.notificationSocket.close();
+// Placeholder function for notifications modal
+function showNotificationsModal(state) {
+    // Create a modal for notifications
+    const modalHtml = `
+        <div class="modal fade" id="notificationsModal" tabindex="-1" aria-labelledby="notificationsModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-scrollable">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="notificationsModalLabel">Notifications</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="text-muted text-center">Notification functionality will be implemented soon.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add the modal to the DOM if it doesn't exist
+    if (!document.getElementById('notificationsModal')) {
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
     }
     
-    // Get the JWT token from state
-    const token = state.token;
-    if (!token) {
-        console.error('No authentication token available for WebSocket connection');
-        return;
+    // Show the modal
+    const modal = new bootstrap.Modal(document.getElementById('notificationsModal'));
+    modal.show();
+}
+
+// Placeholder function for status update modal
+function showStatusUpdateModal(state) {
+    // Create a modal for status updates
+    const modalHtml = `
+        <div class="modal fade" id="statusUpdateModal" tabindex="-1" aria-labelledby="statusUpdateModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="statusUpdateModalLabel">Update Your Status</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p class="text-muted text-center">Status update functionality will be implemented soon.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-primary" disabled>Update Status</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Add the modal to the DOM if it doesn't exist
+    if (!document.getElementById('statusUpdateModal')) {
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
     }
     
-    // Create a WebSocket connection for notifications
-    // We're connecting to a general notification endpoint that will send updates for all chats
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsHost = window.location.host;
-    const wsUrl = `${wsProtocol}//${wsHost}/ws/notifications/?token=${token}`;
-    
-    console.log(`Connecting to WebSocket for notifications: ${wsUrl}`);
-    
+    // Show the modal
+    const modal = new bootstrap.Modal(document.getElementById('statusUpdateModal'));
+    modal.show();
+}
+
+// Function to load chat rooms
+async function loadChatRooms(state) {
     try {
-        state.notificationSocket = new WebSocket(wsUrl);
+        const chatRoomsList = document.getElementById('chat-rooms-list');
         
-        state.notificationSocket.onopen = function(e) {
-            console.log('WebSocket connection established for notifications');
-        };
+        // Show loading indicator
+        chatRoomsList.innerHTML = `
+            <div class="text-center p-3">
+                <div class="spinner-border spinner-border-sm text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="text-muted mb-0">Loading your conversations...</p>
+            </div>
+        `;
         
-        state.notificationSocket.onmessage = function(e) {
-            console.log('WebSocket message received:', e.data);
-            const data = JSON.parse(e.data);
-            
-            // Handle different types of notifications
-            if (data.type === 'new_message') {
-                // If the message is not from the current user, update the notification
-                if (data.message.user.id !== parseInt(state.user.id)) {
-                    // Check if the chat window for this room is open
-                    const chatWindow = document.getElementById(`chat-window-${data.message.room}`);
-                    const isVisible = chatWindow && chatWindow.style.display !== 'none';
-                    
-                    if (isVisible) {
-                        // If the chat window is open, just add the message to the chat
-                        displayMessage(data.message, state.user.id, `chat-messages-${data.message.room}`);
-                        
-                        // Scroll to the bottom of the chat container
-                        const chatMessagesContainer = document.getElementById(`chat-messages-${data.message.room}`);
-                        if (chatMessagesContainer) {
-                            chatMessagesContainer.scrollTop = chatMessagesContainer.scrollHeight;
-                        }
-                        
-                        // Mark the message as read
-                        apiFetch(`http://127.0.0.1:8000/api/addon/messages/mark-read/?room=${data.message.room}`, {
-                            method: 'PUT'
-                        }, state.token).catch(error => {
-                            console.warn('Could not mark messages as read:', error);
-                        });
-                    } else {
-                        // If the chat window is not open, update the notification count
-                        updateNotificationBadge(state);
-                        
-                        // Play notification sound
-                        playNotificationSound();
-                    }
-                    
-                    // If the chat list is open, refresh it
-                    const chatListPanel = document.getElementById('chat-list-panel');
-                    if (chatListPanel && chatListPanel.style.display === 'block') {
-                        loadChatRooms(state);
-                    }
-                }
-            } else if (data.type === 'read_status') {
-                // Update read status for messages
-                console.log('Message read status updated:', data);
+        // Make sure we have a valid user ID
+        if (!state.user && state.userId) {
+            // Try to fetch the current user information
+            try {
+                const currentUser = await apiFetch(`http://127.0.0.1:8000/userauths/api/users/${state.userId}/`, {}, state.token);
+                state.user = currentUser;
+                console.log('Current user fetched for chat rooms:', currentUser);
+            } catch (userError) {
+                console.error('Error fetching user details:', userError);
+                // Create a minimal user object from state
+                state.user = {
+                    id: state.userId,
+                    username: state.username || 'user_' + state.userId,
+                    first_name: state.firstName || '',
+                    last_name: state.lastName || ''
+                };
+                console.log('Created minimal user object:', state.user);
             }
-        };
+        }
         
-        state.notificationSocket.onclose = function(e) {
-            console.log('WebSocket connection closed:', e);
+        // If we still don't have a user object, show an error
+        if (!state.user || !state.user.id) {
+            chatRoomsList.innerHTML = `
+                <div class="text-center p-3">
+                    <p class="text-danger mb-0">User information not available.</p>
+                    <button id="retry-load-chats" class="btn btn-sm btn-outline-primary mt-2">
+                        <i class="bi bi-arrow-clockwise"></i> Retry
+                    </button>
+                </div>
+            `;
             
-            // Attempt to reconnect after a delay
-            setTimeout(() => {
-                if (document.getElementById('chat-notification-icon')) {
-                    console.log('Attempting to reconnect WebSocket...');
-                    initializeWebSocketNotifications(state);
-                }
-            }, 5000);
-        };
+            document.getElementById('retry-load-chats')?.addEventListener('click', () => {
+                loadChatRooms(state);
+            });
+            return;
+        }
         
-        state.notificationSocket.onerror = function(e) {
-            console.error('WebSocket error:', e);
-        };
-    } catch (error) {
-        console.error('Error establishing WebSocket connection:', error);
-    }
-}
-
-// Function to update the notification badge
-function updateNotificationBadge(state) {
-    // Fetch the unread count from the API
-    apiFetch('http://127.0.0.1:8000/api/addon/messages/unread-count/', {}, state.token)
-        .then(response => {
-            const unreadCount = response.count;
-            const unreadBadge = document.getElementById('unread-message-count');
+        // Fetch chat rooms where the current user is a participant
+        const chatRooms = await apiFetch('http://127.0.0.1:8000/api/addon/chat-rooms/', {}, state.token);
+        
+        // Filter to only include rooms where the user is a participant
+        const userRooms = [];
+        
+        for (const room of chatRooms) {
+            // Fetch participants for this room
+            const participants = await apiFetch(`http://127.0.0.1:8000/api/addon/participants/?room=${room.id}`, {}, state.token);
             
-            if (unreadBadge) {
-                if (unreadCount > 0) {
-                    unreadBadge.textContent = unreadCount > 99 ? '99+' : unreadCount;
-                    unreadBadge.style.display = 'block';
-                    
-                    // Change the icon color to indicate new messages
-                    document.getElementById('chat-notification-icon').classList.remove('bg-primary');
-                    document.getElementById('chat-notification-icon').classList.add('bg-danger');
-                    
-                    // Play notification sound if there are new messages
-                    if (state.lastUnreadCount !== undefined && unreadCount > state.lastUnreadCount) {
-                        playNotificationSound();
-                    }
-                } else {
-                    unreadBadge.style.display = 'none';
-                    
-                    // Reset the icon color
-                    document.getElementById('chat-notification-icon').classList.remove('bg-danger');
-                    document.getElementById('chat-notification-icon').classList.add('bg-primary');
+            // Check if current user is a participant
+            const isParticipant = participants.some(p => p.user && p.user.id === parseInt(state.user.id));
+            
+            if (isParticipant) {
+                // Find the other participant (for private chats)
+                let otherParticipant = null;
+                if (room.is_private) {
+                    otherParticipant = participants.find(p => p.user && p.user.id !== parseInt(state.user.id))?.user;
                 }
                 
-                // Store the current unread count
-                state.lastUnreadCount = unreadCount;
+                // Get the last message in this room
+                const messages = await apiFetch(`http://127.0.0.1:8000/api/addon/messages/?room=${room.id}&limit=1`, {}, state.token);
+                const lastMessage = messages.length > 0 ? messages[0] : null;
+                
+                // Add room with additional info
+                userRooms.push({
+                    ...room,
+                    otherParticipant,
+                    lastMessage
+                });
             }
-        })
-        .catch(error => {
-            console.error('Error fetching unread count:', error);
+        }
+        
+        // Sort rooms by last message time
+        userRooms.sort((a, b) => {
+            if (!a.lastMessage) return 1;
+            if (!b.lastMessage) return -1;
+            return new Date(b.lastMessage.sent_at) - new Date(a.lastMessage.sent_at);
         });
+        
+        // Display the rooms
+        if (userRooms.length === 0) {
+            chatRoomsList.innerHTML = `
+                <div class="text-center p-3">
+                    <p class="text-muted mb-0">No conversations yet.</p>
+                    <small class="text-muted">Start a chat with your teachers from the course cards.</small>
+                </div>
+            `;
+        } else {
+            chatRoomsList.innerHTML = userRooms.map(room => {
+                // Determine the display name for the room
+                let displayName = room.name;
+                let avatarUrl = 'https://via.placeholder.com/40?text=?';
+                
+                if (room.is_private && room.otherParticipant) {
+                    displayName = `${room.otherParticipant.first_name || ''} ${room.otherParticipant.last_name || ''}`.trim();
+                    if (!displayName) displayName = room.otherParticipant.username || 'User';
+                    
+                    if (room.otherParticipant.profile_picture_path) {
+                        avatarUrl = room.otherParticipant.profile_picture_path;
+                    }
+                }
+                
+                // Format the last message preview
+                let lastMessagePreview = 'No messages yet';
+                let lastMessageTime = '';
+                
+                if (room.lastMessage) {
+                    lastMessagePreview = room.lastMessage.content.length > 30 
+                        ? room.lastMessage.content.substring(0, 30) + '...' 
+                        : room.lastMessage.content;
+                    
+                    const messageDate = new Date(room.lastMessage.sent_at);
+                    const today = new Date();
+                    
+                    if (messageDate.toDateString() === today.toDateString()) {
+                        // Today, show time
+                        lastMessageTime = messageDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    } else {
+                        // Not today, show date
+                        lastMessageTime = messageDate.toLocaleDateString();
+                    }
+                }
+                
+                return `
+                    <a href="#" class="list-group-item list-group-item-action open-chat-room" data-room-id="${room.id}" data-room-name="${displayName}" data-user-id="${room.otherParticipant?.id || ''}">
+                        <div class="d-flex align-items-center">
+                            <div class="flex-shrink-0">
+                                <img src="${avatarUrl}" class="rounded-circle" width="40" height="40" style="object-fit: cover;">
+                            </div>
+                            <div class="flex-grow-1 ms-3">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h6 class="mb-0">${displayName}</h6>
+                                    <small class="text-muted">${lastMessageTime}</small>
+                                </div>
+                                <p class="text-muted small mb-0">${lastMessagePreview}</p>
+                            </div>
+                        </div>
+                    </a>
+                `;
+            }).join('');
+            
+            // Add event listeners to open chat rooms
+            document.querySelectorAll('.open-chat-room').forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    
+                    const roomId = link.getAttribute('data-room-id');
+                    const roomName = link.getAttribute('data-room-name');
+                    const userId = link.getAttribute('data-user-id');
+                    
+                    // Find the other participant
+                    const room = userRooms.find(r => r.id == roomId);
+                    if (room && room.otherParticipant) {
+                        // Open chat with this user
+                        openChatInterface(roomId, room.otherParticipant, state);
+                        
+                        // Hide the chat list panel
+                        document.getElementById('chat-list-panel').style.display = 'none';
+                    }
+                });
+            });
+        }
+    } catch (error) {
+        console.error('Error loading chat rooms:', error);
+        const chatRoomsList = document.getElementById('chat-rooms-list');
+        chatRoomsList.innerHTML = `
+            <div class="text-center p-3">
+                <p class="text-danger mb-0">Failed to load conversations: ${error.message}</p>
+                <button id="retry-load-chats" class="btn btn-sm btn-outline-primary mt-2">
+                    <i class="bi bi-arrow-clockwise"></i> Retry
+                </button>
+            </div>
+        `;
+        
+        document.getElementById('retry-load-chats')?.addEventListener('click', () => {
+            loadChatRooms(state);
+        });
+    }
 }
 
-// Function to check for new messages (as a fallback to WebSockets)
+
 async function checkForNewMessages(state) {
     try {
         // Skip if we don't have user info
         if (!state.user || !state.user.id) {
             if (!state.userId) return;
             
-            // Use minimal user object if we have userId but not full user object
+         
             state.user = {
                 id: state.userId,
                 username: state.username || 'user_' + state.userId,
@@ -1142,8 +1304,84 @@ async function checkForNewMessages(state) {
             };
         }
         
-        // Update the notification badge
-        updateNotificationBadge(state);
+   
+        const now = new Date();
+        const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000); // 5 minutes ago
+        const lastChecked = localStorage.getItem('lastMessageCheck') || fiveMinutesAgo.toISOString();
+        
+        // Update the last check time
+        localStorage.setItem('lastMessageCheck', now.toISOString());
+        
+        // Track which chat windows are currently open
+        const openChatWindows = [];
+        document.querySelectorAll('[id^="chat-window-"]').forEach(window => {
+            if (window.style.display !== 'none') {
+                const roomId = window.id.replace('chat-window-', '');
+                openChatWindows.push(parseInt(roomId));
+            }
+        });
+        
+        // Fetch all chat rooms where the user is a participant - do this in one request
+        const chatRooms = await apiFetch('http://127.0.0.1:8000/api/addon/chat-rooms/', {}, state.token);
+        
+        // Fetch all messages newer than the last check time in one request
+        let totalNewMessages = 0;
+        const roomsToCheck = chatRooms.filter(room => !openChatWindows.includes(room.id));
+        
+        // Process rooms in parallel for faster response
+        await Promise.all(roomsToCheck.map(async (room) => {
+            try {
+                // Get messages newer than the last check time
+                const messages = await apiFetch(
+                    `http://127.0.0.1:8000/api/addon/messages/?room=${room.id}&after=${lastChecked}`, 
+                    {}, 
+                    state.token
+                );
+                
+                // Count messages not from the current user
+                const newMessages = messages.filter(msg => msg.user && msg.user.id !== parseInt(state.user.id));
+                
+                // update total
+                if (newMessages.length > 0) {
+                    totalNewMessages += newMessages.length;
+                    
+                    // If a chat window exists but is minimized, update it
+                    const chatWindow = document.getElementById(`chat-window-${room.id}`);
+                    if (chatWindow && chatWindow.style.display !== 'none') {
+                        loadChatMessages(room.id, state);
+                    }
+                }
+            } catch (error) {
+                console.error(`Error checking messages for room ${room.id}:`, error);
+            }
+        }));
+        
+        // Update the notification 
+        const unreadBadge = document.getElementById('unread-message-count');
+        if (unreadBadge) {
+            if (totalNewMessages > 0) {
+                unreadBadge.textContent = totalNewMessages > 99 ? '99+' : totalNewMessages;
+                unreadBadge.style.display = 'block';
+                
+                // Change the icon color to indicate new messages
+                document.getElementById('chat-notification-icon').classList.remove('bg-primary');
+                document.getElementById('chat-notification-icon').classList.add('bg-danger');
+                
+                // Play notification sound if there are new messages
+                if (state.lastUnreadCount !== undefined && totalNewMessages > state.lastUnreadCount) {
+                    playNotificationSound();
+                }
+            } else {
+                unreadBadge.style.display = 'none';
+                
+                // Reset the icon color
+                document.getElementById('chat-notification-icon').classList.remove('bg-danger');
+                document.getElementById('chat-notification-icon').classList.add('bg-primary');
+            }
+            
+            // Store the current unread count
+            state.lastUnreadCount = totalNewMessages;
+        }
     } catch (error) {
         console.error('Error checking for new messages:', error);
     }
